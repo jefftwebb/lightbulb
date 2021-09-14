@@ -18,5 +18,5 @@ To install lightbulb:
 To use the lightbulb tutorials:
 
 1. Load the `learnr` package: `library(learnr)`
-2. Open a 'lightbulb` tutorial using the `run_tutorial()` function in `learnr`.  For example:  `run_tutorial("Probability", package = "lightbulb")`. A webpage will automatically be opened with the tutorial.
+2. Open a `lightbulb` tutorial using the `run_tutorial()` function in `learnr`.  For example:  `run_tutorial("Probability", package = "lightbulb")`. This will automatically bring up a browswer window with the tutorial.
 
