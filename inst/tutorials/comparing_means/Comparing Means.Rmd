@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = T, message = F, warning = F)
 library(knitr)
 library(tidyverse)
 library(tidyr)
+library(kableExtra)
 
 delay <- read_csv("data/flight_delay_clean.csv")
 ```
@@ -73,7 +74,9 @@ d <- data.frame(Day = 1:30,
                  A = round(rnorm(30, mean = 300, sd = 120), 2),
                  B = abs(round(rnorm(30, mean = 250, sd = 170), 2)))
 
-d[1:6,] %>% kable
+d[1:6,] %>% 
+  kable %>% 
+  kable_styling()
 
 A <- d$A
 
