@@ -4,6 +4,6 @@ Title: Lightbulb
 Version: 0.1.0
 Author: Jeff Webb
 Maintainer: Jeff Webb <jeff.webb@utah.edu>
-Description: Tutorials for learning R programming and statistics
+Description: Tutorials for learning R programming and statistics.
 Encoding: UTF-8
 LazyData: true
