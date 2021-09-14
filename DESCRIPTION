@@ -6,4 +6,5 @@ Author: Jeff Webb
 Maintainer: Jeff Webb <jeff.webb@utah.edu>
 Description: Tutorials for learning R programming and statistics
 Encoding: UTF-8
+License: MIT
 LazyData: true
