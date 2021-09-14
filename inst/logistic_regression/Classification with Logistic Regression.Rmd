@@ -1,0 +1,956 @@
+---
+title: "Classification with Logistic Regression"
+output: learnr::tutorial
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(caret)
+library(glmnet)
+library(knitr)
+library(e1071)
+library(janitor)
+library(missForest)
+
+# abiding data
+
+# Import data
+#m <- read_csv("data/megatelco_missing.csv")
+
+m <- read_csv("data/megatelco.csv") %>%
+  clean_names() %>% 
+   mutate(reported_usage_level = fct_collapse(reported_usage_level,
+                                             low = c("very_little", "little"),
+                                              avg = "avg",
+                                              high = c("high", "very_high")),
+         reported_usage_level = as.character(reported_usage_level),
+         reported_satisfaction = fct_collapse(reported_satisfaction,
+                                             low = c("very_unsat", "unsat"),
+                                              avg = "avg",
+                                              high = c("sat", "very_sat")),
+         reported_satisfaction = as.character(reported_satisfaction),
+         considering_change_of_plan = fct_collapse(considering_change_of_plan,
+                                             no = c("no", "never_thought"),
+                                              maybe = "perhaps",
+                                              yes = c("considering", "actively_looking_into_it")),
+         considering_change_of_plan = as.character(considering_change_of_plan),
+         reported_satisfaction = factor(reported_satisfaction,
+                                        levels = c("low","avg", "high")),
+         reported_usage_level = factor(reported_usage_level,
+                                       levels = c("low",  "avg", "high")),
+         considering_change_of_plan = factor(considering_change_of_plan,
+                                       levels = c("no", "maybe", "yes")),
+         leave = factor(leave, levels = c("STAY", "LEAVE")),
+         college = factor(ifelse(college == "one", "yes", "no")),
+         overage = overage *2) %>% 
+  rename(overage_charge = overage) %>% 
+  filter(income > 0,
+       house > 0,
+       handset_price < 1000,
+       !is.na(over_15mins_calls_per_month)) 
+
+set.seed(123)
+m <- prodNA(m, noNA = .02) %>% 
+  mutate(handset_price = m$handset_price,
+         overage_charge = m$overage_charge,
+         id = m$id,
+         leave = m$leave)
+
+
+#m$college <- ifelse(m$college=="one", 1,0)
+
+glm_model <- glm(ifelse(leave == "LEAVE", 1, 0) ~ handset_price, 
+    data = m, 
+    family = binomial)
+
+caret_glm_model <- train(leave ~ handset_price,
+                          method = "glm",
+                          data = m)
+
+inv_logit <- function(x) exp(x) / (1 + exp(x))
+
+pred_frame <- data.frame(handset_price = c(mean(m$handset_price), mean(m$handset_price) + 100))
+ 
+estimates <- summary(glm_model)$coefficients
+
+dummy_frame <- dummyVars(factor(leave) ~ ., fullRank = T, data = dplyr::select(m, -id)) %>% 
+  predict(newdata = m)
+
+dummy_frame <- preProcess(dummy_frame, "medianImpute") %>% 
+  predict(newdata = dummy_frame) %>% 
+  data.frame
+
+
+set.seed(123)
+caret_glm <- train(y = m$leave,
+                   x = dummy_frame,
+                   method = "glm",
+                   trControl = trainControl(method = "cv", number = 5))
+
+set.seed(123)
+caret_glmnet <- train(y = m$leave,
+                   x = dummy_frame,
+                   method = "glmnet",
+                   preProcess = c("center","scale"),
+                   trControl = trainControl(method = "cv", number = 5))
+
+set.seed(123)
+caret_knn <- train(y = m$leave,
+                   x = dummy_frame,
+                   method = "knn",
+                   preProcess = c("center","scale"),
+                   trControl = trainControl(method = "cv", number = 5))
+
+
+
+```
+
+
+## Introduction
+
+Linear regression will work for modeling an integer binary target or response variable, but not very well. Typically, some of the fitted values (and predictions) from what we'll call a "linear probability model"  will exceed the 0/1 range of the outcome. For this reason, logistic regression was developed in the mid-20th century to model a binary outcome. In this tutorial we will be using, and introducing, logistic regression as a method for doing *binary* classification. (A classification problem could involve  an outcome variable with more than just two levels.)  There are many other methods for binary classification.   Logistic regression  is particularly useful because it typically works fairly well for  objectives including both prediction  and inference.  
+
+The lecture videos cover the details of logistic regression. Consequently, in this tutorial, I will highlight the key points, but then move quickly into application. The emphasis will be on:
+
+- The modeling pipeline using the `caret` package.
+- Interpreting logistic regression coefficients.
+- The confusion matrix and the ROC curve for comparing comparing classification models.
+- Comparing models using estimated out-of-sample error metrics.
+
+First, a terminological caution.  In previous modules we have used a log transformation of a linear model outcome variable to improve the fit. That is a very different model than a logistic regression model of a binary outcome.  Don't be mislead by the similarity of "log" and "logistic"!
+
+Logistic regression model interpretation is tricky.   The coefficients are expressed in  log odds, which don't have a straightforward meaning  in terms of real-world quantities.  Transforming log-odds coefficients into probabilities is a good option for statistical communication; they tend to be a more intuitive  way to think about logistic regression model results but take more work to generate.
+
+##  Binary Classification Problem
+
+The MegaTelCo churn problem  is  familiar to students who took *Introduction to Business Analytics*. In that class, we modeled customer churn using classification trees as implemented in the `rpart` package.  In this tutorial we will be using it to demonstrate logistic regression.
+
+### Case Description
+
+The MegaTelCo churn problem  is borrowed from *Data Science for Business* (DSB; Provost & Fawcett, O'Reilly Media, 2013). Here is the description of the case from DSB:
+
+> Assume you just landed a great analytical job with MegaTelCo, one of the largest telecommunication firms in the United States. They are having a major problem with customer retention in their wireless business. In the mid-Atlantic region, 20% of cell phone customers leave when their contracts expire, and it is getting increasingly difficult to acquire new customers. Since the cell phone market is now saturated, the huge growth in the wireless market has tapered off. Communications companies are now engaged in battles to attract each  customers while retaining their own. Customers switching from one company to another is called churn, and it is expensive all around: one company must spend on incentives to attract a customer while another company loses revenue when the customer departs.You have been called in to help understand the problem and to devise a solution. Attracting new customers is much more expensive than retaining existing ones, so a good deal of marketing budget is allocated to prevent churn. Marketing has already designed a special retention offer. Your task is to devise a precise, step-by-step plan for how the data science team should use MegaTelCo’s vast data resources to decide which customers should be offered the special retention deal prior to the expiration of their contracts.
+
+There is a clear business problem: customer retention in the company's wireless business is poor.   20% of customers typically do not sign up for the service again when their contracts expire.  Because it it is expensive to acquire new customers, the company would like to  ensure that existing customers renew their contracts. The  marketing department is charged with improving retention, which they  proposed to do by extending  incentives  to existing customers in the form of special offers. The analytics problem is therefore to predict which customers are likely to churn.
+
+
+### The Data
+
+```{r}
+data.frame(Variable = c("College", "Income",  "Overage_charge", "Leftover", "House", "Handset_price", "Over_15mins_calls_per_month", "Average_call_duration", "Reported_satisfaction", "Reported_usage_level", "Considering_change_of_plan", "Leave","ID"),
+            Explanation = c("Is the customer college educated?"," Annual income","Overcharges per year","Average % leftover minutes per month","Estimated value of dwelling (from the census tract)", "Cost of phone", "Average number of long calls (15 mins or over) per month", "Average duration of a call", "Reported level of satisfaction", "Self-reported usage level", "Was customer considering changing his/her plan?","Class variable: whether customer left or stayed", "Numeric customer ID")) %>%
+  kable
+```
+
+`Leave`  is  the outcome variable. We must make sure to remove customer ID before doing any modeling. 
+
+```{r x1, exercise=T}
+# Inspect data
+summary(m)
+
+```
+
+
+There  are missing observations in this dataset, so imputation will be part of our modeling pipeline. 
+
+## Performance Benchmark
+
+Note that the proportion of `LEAVE`--- the majority class in this data set---is an important benchmark for evaluating subsequent models since one possible modeling option  with a binary outcome is to  create a simple  predictive model consisting in a rule: always predict the  majority class. We'll call this benchmark model "majority class prediction." In this case, `STAY` is the majority class.  Predicting `STAY` for every customer will have an in-sample accuracy equal to the proportion in the data of the class label being predicted, which in this case is: 2526 / (2526 + 2468) = .51. (Remember that accuracy is simply the proportion of a model's correct predictions.) So, if we always predict `STAY` we will be right 51% of the time---whenever the observed outcome is `STAY`---and wrong 49% of the time---whenever the observed outcome is `LEAVE`.  This is not a great model, obviously, but it would beat random guessing---barely!---which would be correct about 50% of the time, on average. Any model we develop must have better accuracy than either random guessing or majority class prediction.
+
+<!-- ```{r ran_guess, exercise=T} -->
+<!-- # Simulation of random guessing -->
+<!-- set.seed(125) -->
+<!-- random_guess <- sample(c("STAY","LEAVE"),  -->
+<!--                        size = nrow(m_missing),  -->
+<!--                        replace=T,  -->
+<!--                        prob = c(.5, .5)) -->
+
+<!-- # The results will vary with every simulation but the longrun -->
+<!-- # average will be .5 -->
+<!-- sum(random_guess==m_missing$leave)/nrow(m_missing) -->
+
+<!-- ``` -->
+
+## Logistic Regression
+
+Logistic regression models the **probability** that, for binary outcomes, $y$ = 1, the positive class. The challenge in modeling a binary outcome is that the linear predictor, $X_i\beta$, is on the $[-\infty, +\infty]$ and not the [0, 1] scale of probability. This scale difference requires transforming one side of the regression equation.  For example, the outcome variable can be put on the $[-\infty, +\infty]$ scale by turning it into log odds using the logit function: $$\text{logit}(x) = \text{log}\left( \frac{x}{1-x} \right)$$   The logit function maps the range of the outcome to that of the linear predictor. 
+
+Here is the logistic regression model written in terms of log odds: $$\text{Pr}(y_i = 1) = p_i$$ $$\text{logit}(p_i) =  X_i\beta$$. 
+
+Simply put, odds represent the likelihood that an event will take place (as in the familiar expression "odds are ...").  Technically, odds are a ratio between the probabilities of two mutually exclusive events.  What are the odds in favor of flipping a fair coin and getting a head? .5 / (1 - .5) = 1.  What are the odds in favor of flipping a fair coin and getting a tail? .5 / (1 - .5) = 1.  Even odds make sense, since the probability of flipping heads is the same as the probability of flipping tails.  
+
+Odds can get confusing and, to add to the confusion, logistic regression coefficients are expressed as the *log* of the odds.  
+
+Log odds do not have a meaningful interpretation (other than sign and magnitude) and must be transformed, either into **probabilities**, using the inverse logit, or into **odds ratios**, by exponentiating. (In this course, we focus on probabilities.)
+
+The logistic model can be written, perhaps more usefully, using the  **inverse logit** function:  
+
+$$\operatorname{Pr}(y_i = 1 | X_i) = \operatorname{logit}^{-1}(X_i \beta)$$ where $y_i$ is a binary response, $\operatorname{logit}^{-1}$ is the inverse logit function, and $X_i \beta$ is the linear predictor. In English:  the probability that y = 1 is equal to the inverse logit of the linear predictor, $(X_i, \beta)$, where X represents all of the predictors in the model. What is the inverse logit? 
+$$\operatorname{logit}^{-1}(x) = \frac{e^{x}}{1 + e^{x}} $$
+
+The inverse logit function transforms continuous values of the linear predictor, $X_i \beta$, to the range [0, 1], which is necessary since probabilities---the fitted values in a logistic regression---must be between 0 and 1. Here is a plot of the inverse logit function:
+
+```{r echo=F}
+x <- seq(-6, 6, .01)
+y <- exp(x)/(1 + exp(x))
+plot(x,y, type="l", main=expression(paste("y = ", logit^-1,"(x)")), ylab=expression(paste("y = ", logit^-1,"(x)")))
+```
+
+The inverse logit function is curved. As a consequence, a fixed change in $x$---for example, a  1-unit change---does not correspond to a fixed change in $y$. The relationship is not constant. By  contrast, in  linear regression  the expected difference in $y$ corresponding to a fixed difference in $x$ **is**  constant. **When we interpret logistic results as probabilities we must therefore choose where on the curve we want to evaluate the probability of the outcome, given the model.** For example, a 1-unit change in $x$ where the inverse  logit curve is flat (from $x = -6$ to $x = -5$) is associated with a minuscule change in $y$, whereas a 1-unit change in $x$ in the middle of the curve (from $x = 0$ to $x = 1$) is associated with a relatively large change in $y$. This is what makes logistic regression model coefficients tricky to interpret.
+
+## Fitting and Using the Model
+
+### Fitting the model
+
+A logistic regression model is straightforward to fit using `glm()` function.  "GLM" stands for "generalized linear model"; this function will fit a variety of models using different underlying probability distributions specified with the `family` argument.  For example, the default is `family = gaussian`,  which is a linear model. So, you must make sure to explicitly specify `family = binomial` to ensure that you are fitting a logistic regression. If the outcome variable consisted in a count then you would use `family = poisson.`
+
+Here is an example of a simple logistic regression, modeling customer churn with just one predictor, phone cost (`handset_price`).  We can ignore the issue of missing data for now because there are no missing observations in `handset_price`.
+
+```{r x2, exercise = T}
+# Fit model
+(glm_model <- glm(leave ~ handset_price, 
+                  data = m, 
+                  family = binomial)) %>% 
+  summary
+
+```
+
+
+Here is exactly the same logistic regression, fit with `caret`'s `train()` function as a wrapper. `caret` is happy to use a factor variable as the target. However, we first need to  explicitly order the factor levels in `leave`, otherwise `caret` would use the default alphabetic ordering: we would be modeling `STAY` and our results would be reversed. 
+
+```{r x3, exercise = T}
+# Change factor levels
+m$leave <- factor(m$leave, levels = c("STAY", "LEAVE"))
+
+# Check factor levels
+levels(m$leave)
+```
+
+After that change, the results are identical.
+
+```{r x4, exercise = T}
+# Use caret to fit logistic regression
+(caret_glm_model <- train(leave ~ handset_price,
+                          method = "glm",
+                          data = m)) %>% 
+   summary
+
+```
+
+
+<!-- ```{r x5, exercise = T} -->
+<!-- # Check for missing observations in leave and handset price -->
+<!-- complete.cases(select(m, leave, handset_price)) %>% -->
+<!--   sum == nrow(m) -->
+
+<!-- ``` -->
+
+As noted above, it is possible to use linear regression to fit what is known as a "linear probability model." The problem is that the predictions from such a model are often outside the [0, 1] range of response:
+
+```{r x6, exercise = T}
+# Fit linear probability model
+lm(ifelse(leave == "LEAVE", 1, 0) ~ ., 
+    data = m) %>% 
+  fitted %>% 
+  summary
+
+```
+
+In this case the maximum prediction is greater than 1 and the minimum is negative.
+
+<!-- Here is a visualization of the difference between logistic regression and the linear probability model. -->
+
+
+<!-- ```{r} -->
+
+
+<!-- ``` -->
+
+
+### Probability model 
+
+Logistic regression estimates a *probability* model of the outcome.  It is a probability model first and a classification model second.  This is the reverse of, say, a KNN classifier, which is a classification model first and a probability model second.  `caret` will produce predicted probabilities from a KNN classifier, but it generates the probabilities by reverse engineering them from the class proportions in the nearest neighbor groupings.  
+
+To extract probabilities from a logistic regression model include the `type = "response"` argument to `predict()`; this puts the predictions on the [0, 1] scale of the response. The `predict()` function's default is to return fitted values on the log-odds scale.
+
+```{r x7, exercise = T}
+# Inspect fitted values on probability scale
+predict(glm_model, type = "response") %>%  
+  head
+
+```
+
+The syntax for prediction is (unfortunately) different in `caret`. Use `type = "prob"`.
+
+```{r x8, exercise = T}
+# Inspect fitted values on probability scale
+predict(caret_glm_model, type = "prob") %>%  
+  head
+
+```
+
+The output of `predict()` in this case is a two column data frame, in which the sum of the two columns equals 1 for each row. (This is because the two outcomes are mutually exclusive.) To use this data frame for predictions requires choosing the appropriate column, which can be indexed either with square bracket or with column (`$`) notation:
+
+```{r x9, exercise = T}
+# Extract probabilities from caret model:
+
+# Method 1
+predict(caret_glm_model, type = "prob")[, 2] %>%  
+  head
+
+# Method 2
+predict(caret_glm_model, type = "prob")$LEAVE %>%  
+  head
+
+```
+
+## Understanding Model Output
+
+###  Coefficients
+
+The coefficient for handset_price in the above model is .001. As noted, this is the change in the log  odds of churn associated with a one unit--- in this case, one dollar--- increase in `handset_price`. Log odds do not have a straightforward interpretation other than magnitude and sign. 
+
+- *Magnitude*.  If the magnitude of the coefficient for one predictor is larger than for another predictor, then we can surmise that the effect size is larger, even if the quantity in the coefficient is not directly interpretable.
+
+- *Sign*. If the sign  is positive then we can interpret the relationship between the predictor and the outcome as positive.  Likewise for a negative sign: it indicates a negative relationship.
+
+The difficulty of interpreting logistic regression coefficients directly (other than magnitude and sign) means that it often makes sense to translate them into odds ratios or probabilities.
+ 
+**Odds ratios**  
+
+Odds ratios (ORs) are obtained by exponentiating the coefficient and interpreting the result as the change in the odds of the outcome relative to the baseline of 1. This is equivalent to the way we interpreted linear regression coefficients in a log model.  So, for example, considering that the coefficient for handset_price is .001:  $e^{.001}$ (implemented as `exp(.001)` in R code) is 1.001, which indicates a very  small percentage increase (compared to the baseline of 1) in the odds of the outcome associated with an increase in `handset_price` of one dollar (.001 * 100 = .1%). If you encountered a logistic regression coefficient of, say, -.1, then you could exponentiate this---$e^-.1 = .9$---and interpret the result as: a 1-unit change in the predictor *decreases* the likelihood of the outcome by 10% compared to baseline (that is, .9 vs. 1).
+
+The disadvantage of ORs is that they are obscure and hard to explain to non-specialist audiences (attempt it at your peril!), since almost no one is familiar with the concept of odds, let alone a ratio of odds.  Still, they are convenient to work with, in that they express a constant or linear relationship between predictor and outcome, and easy to compute.  However, in this course we will focus on probabilities which, though the computation is more involved, are also more intuitive to understand and easier to explain to non-technical audiences.
+
+**Probabilities**
+
+To translate simple logistic regression coefficients into probabilities involves comparing the probability of the outcome at different values of the predictor. We must choose those values because the inverse logit curve, as we saw above, is curved: a 1-unit change in the predictor produces different changes in the outcome depending on the predictor values.  The process goes like this:
+
+1. Fit a simple logistic regression model:  $\operatorname{Pr}(y_i = 1 | x_i) = \operatorname{logit}^{-1}(x_i \beta)$.  This is a *simple* logistic regression because there is just one predictor, $x_i$, rather than a matrix of predictors, $X_i$.
+2. Choose the two values of the predictor, $x_1$ and $x_2$, at which you have decided to evaluate the probability of the outcome.  
+3. Calculate $\operatorname{Pr}(y = 1 | x_1)$ and $\operatorname{Pr}(y = 1 | x_2)$.
+4. Calculate the change in probability, $\delta \operatorname{Pr}(y)$, as $\operatorname{Pr}(y = 1 | x_1)$ - $\operatorname{Pr}(y = 1 | x_2)$
+
+How should we select the two values of the predictor? It makes sense to select values that have particular business interest and/or involve the majority of observations.  Values near the mean or median of the predictor, in the steepest part of the inverse logit curve, where most observations are located, tend to be a good choice. For example, suppose an that operational decision hinged on knowing how increasing the cost of a phone by $100 would impact the probability of churn.  We might choose to define the starting point for the increase as the current mean: \$388.  The question to be answered, then, would be how an increase in phone cost from \$388  to \$488 would impact churn.  
+
+Here is code for extracting coefficients directly from the model to calculate the probability associated with this change. 
+
+```{r x10, exercise = T}
+# Code for extracting coefficients
+coef(glm_model)
+coef(glm_model)[1]
+coef(glm_model)[2]
+
+```
+
+Next we define an inverse logit function and use it to calculate how churn probability changes when phone price is increased by \$100.
+
+```{r x10_1, exercise = T}
+# Define inverse logit function
+inv_logit <- function(x) exp(x) / (1 + exp(x))
+
+# Subtract the probability at mean handset_price 
+# from the probability at mean + 100
+inv_logit(coef(glm_model)[1] + 
+            coef(glm_model)[2] * (mean(m$handset_price) + 100)) -
+  
+  inv_logit(coef(glm_model)[1] + 
+              coef(glm_model)[2] * mean(m$handset_price)) 
+
+```
+
+Based on the model coefficients (expressed in log odds) we can discern that the relationship between `handset_price` and `leave` is positive--- that is, as phone price goes up so does the likelihood of churn--- but that the  effect size is fairly small, given the small coefficient. Translating this relationship into probabilities makes that relationship clearer: an increase of \$100, from the  average phone cost of \$388,  to \$488,  is associated with a change of .024 in the probability of churn.  How do we interpret this?  Given that increase in phone price we expect that about 2 additional customers out of 100 will churn on average.
+
+Here is an alternative workflow to do the same calculations using a data frame as input to the `newdata` argument in `predict()`.
+
+1. Set up a two-row data frame with the values of `handset_price` at which you would like to evaluate the probability of churn.  With this method the predictor must be titled exactly the same as in the source dataset.
+
+```{r x11_1, exercise = T}
+# Set up data frame
+(pred_frame <- data.frame(handset_price = c(mean(m$handset_price), 
+                                            mean(m$handset_price) + 100)))
+```
+
+2. Use this small data frame in the `newdata` argument in the `predict()` function, specifying `type = "response"` to calculate probabilities.
+
+```{r x11_12, exercise = T}
+# Obtain probabilities 
+predict(glm_model, type = "response", newdata = pred_frame)
+
+```
+
+3. Calculate the difference in probability.
+
+```{r x11_2, exercise = T}
+# Find  the difference between the two columns:
+predict(glm_model, type = "response", newdata = pred_frame) %>% 
+  diff
+
+```
+
+Here is an alternative implementation for the last step:
+
+```{r x11_3, exercise = T}
+# Calculate the difference in probability:
+predict(glm_model, type = "response", newdata = pred_frame)[2] -
+  predict(glm_model, type = "response", newdata = pred_frame)[1]
+
+```
+
+These are important techniques to learn.  When using a model for data exploration, to reason about relationships in the data, you will, admittedly, most likely opt to use model coefficients or ORs. These offer the quickest way to learn about data.  But translating effects into probabilities is a crucial technique for communication, for helping decision-makers understand a result and take appropriate action.
+
+
+### Uncertainty
+
+As with the output for `lm()`, the `glm()` function reports a standard error (SE) that represents the uncertainty associated with the point estimate of $\hat\beta$.  (It reflects the idea that, under repeated sampling from the population, we would randomly get varying estimates of $\hat\beta$.) We can use the SE to compute an approximate 95% confidence interval for $\hat\beta$.  
+
+```{r x12, exercise = T}
+# Extract the coefficients from the model object
+(estimates <- summary(glm_model)$coefficients)
+
+```
+
+```{r x12_1, exercise = T}
+# CI lower bound
+estimates[2,1] - 2 * estimates[2,2]
+
+```
+
+```{r x12_2, exercise = T}
+# CI upper bound
+estimates[2,1] + 2 * estimates[2,2]
+
+```
+
+```{r x12_5, exercise = T, message =F, warning=F}
+# or, more simply, use the built-in function:
+confint(glm_model)
+
+```
+
+A 95% confidence interval that includes 0, just as in the case of `lm()`, indicates that the coefficient is not statistically significant at the $p < .05$ level.  This one does not include 0, so we can conclude---and the estimated p-value confirms this---that the coefficient is statistically significant.
+
+### z-value and Pr(>|z|)
+
+The `glm()` function uses the normal distribution rather than the t-distribution to calculate p-values.  The reported z-value (which is equivalent to a t-value in linear regression but based on the normal distribution) is a z-score; the coefficient has been standardized by dividing it by the SE:
+
+```{r x13, exercise = T}
+# Coefficient
+estimates[2,1] 
+
+# Standard Error
+estimates[2,2]
+
+# Z-value
+estimates[2,1] / estimates[2,2]
+
+```
+
+The p-value represents the proportion of the null distribution that is equal to or more extreme than the z-value.  We can calculate the p-value independently using the `pnorm()` function and the z-value:
+
+```{r x14, exercise = T}
+# Compute p-value
+pnorm(estimates[2,3], lower.tail = F) * 2
+
+```
+
+This returns exactly the same value as the `glm()` output. The z-value is positive, so it is in the right or upper tail of the z-distribution; the p-value calculation therefore needs to be done from the right, in the region $[\infty, \text{z-value}]$.  Then we multiply by 2 to obtain a two-tailed test.
+
+### Null and Residual deviance
+
+Deviance is an error metric specific to a `glm()` model that can be used to assess model fit and to compare nested models.  (Remember, nested models are  the same except for the number of predictors.  For example, `y ~ x1` and `y ~ x1 + x2` are nested models.) 
+
+- *Null deviance* represents the difference between an intercept-only model and a  so-called "saturated model," which has a coefficient for every observation.  An intercept-only model is one that models the  response variable with just the mean of the  response (R code: `glm(y ~ 1, data = data, family = binomial)`).  The fit in  a saturated model would describe the data perfectly and have no error. Null deviance = $2 (\ell(\text{saturated}) - \ell(\text{null}))$, where $\ell$ is the [log-likelihood](https://en.wikipedia.org/wiki/Likelihood_function)  of the model.
+
+- *Residual deviance* represents the difference between the model you have fit ("proposed model") and a saturated model. Residual deviance = $2 (\ell(\text{saturated}) - \ell(\text{proposed}))$.
+
+To interpret residual deviance and assess model fit you must compare it either with null deviance or with the residual deviance from a competitor model: 
+
+- If residual deviance is lower than null deviance then it means that the proposed model is better than an intercept-only model.  
+
+- If residual deviance is lower after adding a predictor it means the new model is better. 
+
+In general, lower residual deviance means better model fit.  However, keep in mind that residual deviance will decline by 1 for every predictor added to a model.  So if you add a predictor and residual deviance goes down by $\leq$ 1 then the predictor is not improving the model.
+
+### AIC
+
+AIC stands for "Akaike information criterion" and is a useful measure of model fit that penalizes for model complexity.  At a certain point, the addition of another predictor to an already-complex model, even if the addition decreases residual deviance, will cause AIC to go up.  AIC is thus an error metric, like adjusted $R^2$ in a linear model, that attempts to identify when a model is beginning to overfit and will not generalize well to new data.
+
+Like residual deviance, AIC can only be used to compare nested models.  Lower AIC indicates a better model fit.  
+
+## Model Evaluation and Comparison
+
+The above model fit metrics---null and residual deviance,  along with AIC--- can only be used with a parametric classifier like logistic regression.  But there are many different kinds of classification models that we might like to compare, so we need a more general approach to assessing model fit. 
+
+### Accuracy
+
+One of the most common measures of classification model performance is accuracy, defined as the proportion of  a model's predicted class labels  that are correct (hence ranging from 0 to 1). To calculate accuracy for a logistic regression model we must transform model-predicted probabilities into class labels using what we'll call a "class decision threshold," which is defined as the probability cut-off above which we would predict the event we are modeling.   There is no fixed cut-off; different situations  demand different thresholds, although $p(event) \geq .5$ is a common default threshold.  (For example, `caret` uses .5 when using a probability to predict a binary class label.)  
+
+```{r x15, exercise = T}
+# Model predicted probabilities
+predict(glm_model, type = "response") %>% 
+  head
+
+```
+
+
+```{r x15_5, exercise = T}
+# Model predicted probabilities converted into class labels using
+# a p(event > .5) decision threshold
+ifelse(predict(glm_model, type = "response") > .5, "LEAVE", "STAY") %>% 
+  head
+
+```
+
+Model accuracy can be calculated once probabilities have been converted to class labels.
+
+```{r x16, exercise = T}
+# Calculate the proportion of correctly classified labels
+(ifelse(predict(glm_model, type = "response") >= .5, "LEAVE", "STAY") == m$leave) %>% 
+  mean
+
+```
+
+This code works because the double equals sign, "==," evaluates to `TRUE` or `FALSE` (in effect it asks: does the predicted value equal the observed value, `T` or `F`?), and in R the `mean()` of a logical vector calculates the proportion of `TRUE`.  
+
+55.86% of the model's classifications were correct, and 1 - .55.86 $\approx$ .44 is the proportion of *incorrect* classifications.  (Note:  this is an in-sample calculation of accuracy because we are evaluating the model's predictions using the training data.)  Recall that the benchmark model performance we defined above---the proportion of `LEAVE` in the dataset---was about .51, so this very simple model, `leave ~ handset_price`, surprisingly outperforms the benchmark.
+
+### Confusion matrix
+
+We can, furthermore, summarize the results of any classification model using a confusion matrix (so named because it shows where the model is confused), which tallys how many times the model correctly or incorrectly predicts the event (which, in this case, is `LEAVE`) and how many times it correctly or incorrectly predicts the event not happening (`STAY`). Notice that there are four possibilities here:
+
+- predict event correctly, known as a "true positive" (TP). 
+- predict event incorrectly, known as a "false positive" (FP).
+- predict no event correctly, known as a "true negative" (TN). 
+- predict no event incorrectly, known as a "false negative" (FN).
+
+The four possibilities  can be summarized in a 2 x 2 matrix:
+
+```{r echo=FALSE}
+cm <- table(predicted = rep(c("LEAVE","STAY"), 1),
+      observed = rep(c("LEAVE","STAY"), 1))
+
+cm[1,1] <- "TP"
+cm[2,1] <- "FN"
+cm[1,2] <- "FP"
+cm[2,2] <- "TN"
+
+cm 
+```
+
+The true positive rate, TP / (TP + FN),  or the model's success with the positive class, is known as *sensitivity*. The true negative rate, TN / (TN + FP),  the model's success with the negative class, is known as *specificity*.
+
+Here are the actual numbers from the logistic regression model with a class decision threshold of .5:
+
+```{r x17, exercise = T}
+# Confusion matrix at decision threshold of prob = .5
+table(predicted = ifelse(predict(glm_model, type = "response") >= .5, "LEAVE", "STAY"),
+      observed = factor(m$leave, levels = c("LEAVE","STAY")))
+
+```
+
+How to read this?  As indicated by the labels, the model's predictions are in the rows of the confusion matrix, and the observed values from the data are in the columns. The matrix allows us to see what sort of errors the model is making.
+
+- TP: 947 cases in which the model correctly predicted `LEAVE`
+- FP: 683 cases in which the model incorrectly predicted `LEAVE`
+- FN: 1521 cases in which the model incorrectly predicted `STAY`
+- TN: 1843 cases in which the model correctly predicted `STAY`
+
+Notice that we can obtain accuracy from the confusion matrix by summing the diagonal from upper left to lower right, the correct label predictions, and dividing by the total:  $Acc = \frac{\sum TP + \sum TN}{\sum Total Pop}$ = (947 + 1843)/ (947 + 1843 + 683 + 1521) $\approx$ .56.
+
+Adjusting the class decision threshold will change model performance, measured in terms of overall accuracy and, more specifically,  in terms of the numbers in  the cells of the confusion matrix.   
+
+```{r x18, exercise = T}
+# Confusion matrix at decision threshold of prob = .6
+table(predicted = ifelse(predict(glm_model, type = "response") >= .6, "LEAVE", "STAY"),
+      observed = factor(m$leave, levels = c("LEAVE","STAY")))
+
+```
+
+The class decision threshold  can thus be adjusted to adapt the model for use in different business contexts for different business goals.  Changing the class decision threshold to .6 in this case, for example, had the result of predicting `LEAVE` less frequently and lowering the number of false positives. This might be desirable in certain circumstances.
+
+### ROC curve and AUC
+
+To assess a classifier it is helpful to see how it performs at *all* possible decision thresholds.  A ROC curve is used for this purpose and AUC---which stands for "area under the curve"---is the metric that summarizes model performance across all possible decision thresholds.  There are many implementations of ROC curves, and associated metrics, in R; here we will be using the pROC package, which includes a ggplot function, `ggroc()`, for visualizing ROC curves.  Here is the ROC curve from our simple model of `leave`:
+
+```{r echo= F, message = F, warning = F}
+# Load pROC library
+library(pROC)
+
+# Create a ROC object with the roc() function.
+# The first argument is the response, and the second is predicted:
+roc_object <- roc(response = m$leave, 
+                  predictor = predict(glm_model, type = "response"))
+
+# Plot
+ggroc(roc_object, alpha = 0.5, colour = "red", legacy.axes = T,
+      levels = c("STAY","LEAVE")) +
+  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="grey", linetype="dashed") +
+  theme_minimal() +
+  labs(title = "ROC curve for leave ~ handset_price",
+       x = "1 - specificity (false positive rate)",
+       y = "sensitivity (true positive rate)")
+
+```
+
+Details:
+
+- The ROC curve, in red, summarizes model performance, measured in terms of the trade-off between the false positive rate or FPR (equivalent to 1 - specificity, or 1 - true negative rate, the model's failure in predicting the negative class) and the true positive rate or TPR (sensitivity, the model's success at predicting the positive class), *at every possible class decision threshold*, starting at a threshold of 1 in the lower left of this particular ROC curve and ending at 0 in the upper right. There is a trade-off between FPR and TPR because as the model does better at predicting the positive class, it will necessarily do worse at predicting the negative class, and vice versa.
+- The best possible prediction method would yield a point in the upper left corner representing 100% true positives and 0% false positives.
+- The dashed diagonal line (known as the line of "no discrimination") represents the performance of a model consisting in random guessing. The diagonal divides the ROC space. Points above the diagonal represent good classification results (better than random); points below the line represent bad results (worse than random). Note that the output of a consistently bad predictor could simply be reversed to obtain a good predictor. 
+
+Let's explore this curve by experimenting with different thresholds to see the effects on sensitivity and specificity.
+
+```{r x19, exercise = T}
+# Confusion matrix at decision threshold of prob = 1
+table(predicted = ifelse(predict(glm_model, type = "response") >= 1, "LEAVE", "STAY"),
+      observed = factor(m$leave, levels = c("LEAVE","STAY"))) 
+
+```
+
+Here the class decision threshold is 1; the model in this case never predicts the event, which is why the top row for `LEAVE` is missing in this matrix.  The TPR or sensitivity will be:  0 / (2468 + 0) = 0.  The FPR will also be 0:  0 / (2526 + 0). 
+
+Here are the calculations at .5:
+
+```{r x20, exercise = T}
+# Confusion matrix at decision threshold of prob > .5
+table(predicted = ifelse(predict(glm_model, type = "response") >= .5, "LEAVE", "STAY"),
+      observed = factor(m$leave, levels = c("LEAVE","STAY"))) 
+
+```
+
+At a probability threshold of .5, TPR will be 947 / (947 + 1521) = .38, while the FPR  will be 683 / (683 + 1843) = .27.
+
+Here are the calculations at a probability threshold of .6:
+
+```{r x21, exercise = T}
+# Confusion matrix at decision threshold of prob >= .6
+table(predicted = ifelse(predict(glm_model, type = "response") >= .6, "LEAVE", "STAY"),
+      observed = factor(m$leave, levels = c("LEAVE","STAY"))) 
+
+```
+
+At .6, TPR will be 114 / (114 + 2354) = .05, while FPR will be 97 / (97 + 2429) = .04.
+
+Here is the ROC curve with these points added:
+
+```{r echo = F, message=FALSE, warnings = F}
+
+TPRpoint6 <- 114 / (114 + 2354)
+FPRpoint6 <- 97 / (97 + 2429)
+TPRpoint5 <- 947 / (947 + 1521)
+FPRpoint5 <- 683 / (683 + 1843)
+  
+  
+roc(m$leave, predict(glm_model, type = "response"),
+     levels = c("STAY","LEAVE"))  %>% 
+  ggroc(alpha = 0.5, colour = "red", legacy.axes = T) +
+  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="grey", linetype="dashed") +
+  theme_minimal() +
+  geom_point(aes(x = FPRpoint6, y =TPRpoint6), col = "red")+
+  geom_point(aes(x = FPRpoint5, y =TPRpoint5), col = "red") +
+  labs(title = "ROC curve for leave ~ handset_price",
+       x = "1 - specificity (false positive rate)",
+       y = "sensitivity (true positive rate)")+
+  annotate("text", label = "p(LEAVE) > .6", x = .3, y = .05)+ 
+  annotate("text", label = "p(LEAVE) > .5", x = .2, y = .5)
+
+
+```
+
+## MegaTelCo Churn Example
+
+Equipped with the above information we will practice the entire modeling pipeline in preparation for the case study.
+
+- Do necessary cleaning.
+- Create a set of predictors that are entirely numeric. Why do we do this? So we can impute missing observations with medians.
+- Remove variables with near zero variance. This is an optional step. 
+- Impute with medians.  This time we will impute outside of the `train()` function.
+- Assess and remove correlated variables. This is also an optional step.
+- Fit a logistic regression model of churn.
+
+### Cleaning
+
+Remember to remove the ID column before modeling!   Obviously there are many missing observations; we will impute those below. The categorical variables are already coded as factors.
+
+### Dummy variables
+
+Remember to include the `fullRank = T` argument!
+
+```{r x21_5, exercise = T, warning=FALSE}
+# Set up dummy frame, remembering to remove id
+dummy_frame <- dummyVars(leave~ ., fullRank = T, data = select(m, -id)) %>% 
+  predict(newdata = m)
+
+# Check that the conversion worked
+dummy_frame %>% 
+  data.frame %>% 
+  glimpse
+
+
+```
+
+### Remove near zero variance predictors
+
+There are two near zero variance predictors identified by `nzv()`. 
+
+```{r x24, exercise = T}
+# Check for near zero variance predictors
+nzv(dummy_frame, names = T) 
+
+```
+
+`Reported_usage_level.avg` is a dummy variable consisting in mostly 0s. `Overage_charge` also has many 0s. Let's look closer:
+
+```{r x24_1, exercise = T}
+
+dummy_frame %>% 
+  data.frame %>% 
+  select(overage_charge, reported_usage_level.avg) %>% 
+  head(20)
+
+```
+
+There is clearly information in these variables. As I noted in the previous tutorial, a little information is better than none!  And including weak predictors in a regression model will typically not cause problems. Consequently, we will leave these variables in the predictor set. Removing them *might* make sense if your data is high dimensional and you need an excuse to get rid of predictors. 
+
+
+<!-- ```{r x24_5} -->
+<!-- # The code for removing NZV would be: -->
+
+<!-- # dummy_frame <- dummy_frame[, -nzv(dummy_frame)] -->
+
+
+<!-- ``` -->
+
+
+<!-- If there were, we would use the column numbers produced by `nzv()` to remove them, if that seemed warranted in the context of the analysis. -->
+
+
+### Impute
+
+Once all the predictors are numeric, we can use impute missing observations. In this case we are imputing outside of the `train()` function in order to have complete cases for the next (optional) step in the modeling pipeline: finding and removing highly correlated predictors.  
+
+```{r x25, exercise = T}
+# Impute missing observations
+dummy_frame <- preProcess(dummy_frame, "medianImpute") %>% 
+  predict(newdata = dummy_frame)
+
+# Check that imputation was successful
+dummy_frame %>% 
+  complete.cases %>% 
+  all
+```
+
+### Find and remove correlated variables
+
+As it turns out, there are no  highly correlated predictors. Note that the cutoff used in the `findCorrelation()`  function is somewhat arbitrary. Play around with values, and resulting model performance, to choose a good value. The cutoff value will  be different for different applications. Review the syntax for using the function in [chapter 3.3 of the caret documentation](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictors).
+
+Remember that it is not necessary to  remove correlated predictors if your goal is prediction. the `findCorrelation()` take a correlation matrix as input and outputs one of two variables that have a correlation over the cutoff. 
+
+```{r x26, exercise = T}
+# Find correlations
+dummy_frame %>% 
+  cor %>% 
+  findCorrelation(cutoff = .8, names = T)
+
+
+```
+
+There are no predictors with a correlation higher than .8. 
+
+### Fit multiple models
+
+The task now is to fit and compare a variety of models using the `train()` function in `caret`.  The best model is the one with the highest cross-validation estimated out-of-sample performance.  Note that `caret`'s automatic use of cross-validation makes model-fitting time-consuming, since multiple models are being fit, especially if there are hyperparameters to optimize.  (For example, 10-fold cross-validation will fit 10 models. Suppose that the model also includes 2 hyperparameters, as in the case of `glmnet()`, and `caret` is checking 3 possible values to optimize those hyperparameters for out-of-sample performance.  That is $10 * 3^2 = 90$ models!) To speed things up in the following code, I have used 5-fold cross-validation, defined with the `trainControl()` function in the `trControl` argument.
+
+Note: the outcome variable should be a binary factor for caret.
+
+```{r x27, exercise = T, warnings = F, messages = F}
+# Fit multiple models.  This code is slow to run!
+
+set.seed(123)
+(caret_glm <- train(y = m$leave,
+                   x = dummy_frame,
+                   method = "glm",
+                   trControl = trainControl(method = "cv", number = 5)))
+
+set.seed(123)
+(caret_glmnet <- train(y = m$leave,
+                   x = dummy_frame,
+                   method = "glmnet",
+                   preProcess = c("center","scale"),
+                   trControl = trainControl(method = "cv", number = 5)))
+
+set.seed(123)
+(caret_knn <- train(y = m$leave,
+                   x = dummy_frame,
+                   method = "knn",
+                   preProcess = c("center","scale"),
+                   trControl = trainControl(method = "cv", number = 5)))
+```
+
+Remember that the information `caret` prints to the screen is the cross-validation estimated out-of-sample model performance.  By this measure the glmnet model is only *very slightly* better than the glm model.  Here is a ROC curve displaying the performance of these classifiers in-sample, using all the defaults in the `ggroc()` function:
+
+```{r x28, exercise = T, warning=F, message= F}
+# Set up list of ROC objects for different models
+(model_list <- list(glm = roc(m$leave, predict(caret_glm, type = "prob")$LEAVE),
+                   glmnet = roc(m$leave, predict(caret_glmnet, type = "prob")$LEAVE),
+                   KNN = roc(m$leave, predict(caret_knn, type = "prob")$LEAVE)))
+
+# Plot ROC curve
+ggroc(model_list) +
+  geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), color="grey", linetype="dashed") +
+  theme_minimal() +
+  labs(title = "ROC curve for models of churn") 
+```
+
+This default plot produced by pROC has a flipped x-axis;  the resulting curve, however,  represents exactly the same  information as the one  included earlier. 
+
+The two logistic regression models, regularized and unregularized, are nearly identical performance-wise.  The green line for the glmnet ROC curve is perfectly superimposed on the red line for the glm ROC curve. The similarity in performance is not surprising since the number of predictors is relatively small and the risk of overfitting is correspondingly slight. The regularized model does not have much room for improving the generalizability of the logistic regression model. The KNN classifier is clearly the best model in-sample, with a much higher AUC than the other two.  But the cross-validation estimate of the KNN classifier's performance on new data reveals that this model's in-sample performance is misleading and comes at the expense of out-of-sample performance:  it is overfitting.
+
+### Assessing and interpreting variable importance
+
+Although the performance of the glmnet and glm  models are almost identical, the glmnet  model, in theory, has the advantage of being simpler.   Here are the coefficients  for the final model, which, because  the inputs have been centered and scaled, can be used to assess effect sizes.
+
+```{r x29, exercise = T}
+# Extract glmnet coefficients
+coef(caret_glmnet$finalModel, caret_glmnet$finalModel$tuneValue$lambda) %>% 
+  round(2)
+
+
+```
+
+As we can see, this model is actually not simpler: none of the coefficients have been removed from the model (though they may have been shrunk slightly towards 0). This is because, as noted above, the logistic regression model is not overfitting the data so the regularized model does not have much work to do. Nevertheless, let's interpret these coefficients.
+
+`House` has the largest effect size, followed by `overage_charge`. Here is how we would interpret these coefficients in terms of log odds:
+
+- An increase of one unit in centered and scaled `house` (i.e., one standard deviation)  is associated with a change of -.49 in the log odds of churn. (OR: $e^{-.49} = .61$, indicating about a 40% *decrease* in the odds of churn compared to the baseline of 1.)
+
+- An increase of one unit in centered and scaled `overage_charge` (i.e., one standard deviation)  is associated with a change of .42 in the log odds of churn. (OR: $e^{.42} = 1.52$, indicating about a 52% *increase* in the odds of churn compared to the baseline of 1.)
+
+We would obviously want to use non-causal language to describe these relationships, since  the value of a person's home, for example, does not cause cell phone decisions!   Insofar as house price is a proxy for wealth, though, this result might indicate that customers with more money are less likely to change plans.   And customers with higher overage charges---the fees for going over the allowed minutes on the plan---might be more likely to change providers   We would need to do additional modeling to understand these relationships, and develop a causal account of the factors influencing churn.
+
+<!-- The `varImp()` in `caret` is also  handy for comparing predictors. In this case it tells much the same story as the coefficients from the glmnet model. -->
+
+<!-- ```{r x30, exercise = T} -->
+<!-- # Extract variable importance -->
+<!-- varImp(caret_glm) -->
+<!-- varImp(caret_glmnet) -->
+<!-- varImp(caret_knn) -->
+
+<!-- ``` -->
+
+<!-- ###  Converting  logistic regression results into probabilities -->
+
+<!-- Suppose that through additional research and modeling you have established  that high overage in cell phone usage was a key reason for customer churn. The natural next step  is to ask: how would the probability of churn be affected if the overage policy were changed? To address this question, we need to convert the results of our model  from log odds into probabilities. -->
+
+<!-- The approach described below is a general method for answering "what if" type questions.  It consists in calculating the probability of an outcome under one policy scenario and comparing it to the probability under an alternative scenario.   -->
+
+<!-- **Step 1** -->
+
+<!-- Calculate average `p(LEAVE)` with no policy change. We will use the regularized logistic regression model for this calculation since it has *slightly* better estimated out-of-sample performance than the other models. -->
+
+<!-- ```{r x31, exercise = T} -->
+<!-- # Calculate probability -->
+<!-- (no_policy_change <- predict(caret_glmnet, type = "prob")$LEAVE) %>%  -->
+<!--   mean -->
+
+<!-- ``` -->
+
+<!-- **Step 2** -->
+
+<!-- Calculate average `p(LEAVE)` with a policy change. What should the policy change be?  For purposes of illustration, and acknowledging that there are obviously different possibilities here, let's propose that the company *increase* the allowed plan  minutes in order to *reduce* overage fees by 80% for every customer.   -->
+
+<!-- The procedure will be to create a new data frame with reduced overage that will then be used to calculate a new probability of churn. Crucially, everything about the data and the model remains exactly the same except the change in overage. This allows us to examine the effect on the predicted probability of churn resulting uniquely from just one change:  80% reduction in overage fees. -->
+
+<!-- ```{r x32, exercise = T} -->
+<!-- # Create new dataset with proposed overage -->
+<!-- new_dummy_frame <- dummy_frame %>%  -->
+<!--   mutate(overage = overage - overage * .8) -->
+
+<!-- # Calculate new probability with the new data (same model) -->
+<!-- (policy_change <- predict(caret_glmnet,  -->
+<!--                          type = "prob",  -->
+<!--                          newdata = new_dummy_frame)$LEAVE) %>%  -->
+<!--   mean -->
+
+<!-- ``` -->
+
+<!-- **Step 3** -->
+
+<!-- Calculate the change in `p(LEAVE)` associated with the new policy. Remember that steps 1 and 2 above have created two vectors of probabilities---one for each customer---so we can examine the *distribution* of differences: -->
+
+<!-- ```{r x33, exercise = T} -->
+<!-- # Subtract probabilities -->
+<!-- (policy_change - no_policy_change) %>%  -->
+<!--   summary -->
+
+<!-- ``` -->
+
+<!-- This result suggests that, as expected, all customers are less likely to churn after the policy change (the maximum difference is negative), with an average reduction of 8% in the probability of leaving. Out of 100 customers we would expect roughly 8 fewer customers would churn under the new policy. -->
+
+<!-- ## From Predictive to Prescriptive Analytics -->
+
+<!-- What do we do with these results? How do we translate this change in the probability of churn into an estimate of profit?  Charging less in overage fees will, after all, reduce revenue at the same time that it prevents attrition. Which one of these---the *cost* of reducing overage fees or the *benefit* of preserving revenue from subscription fees---is larger?  Could the company lose money with such a policy change? Figuring out what to do with a classification model---how to use logistic regression modeling results to make business recommendations---is the subject of the next module. -->
+
+## From Predictive to Prescriptive Analytics
+
+What do we do with these results? How do we translate model coefficients into information useful to decision-makers? Figuring out what to do with a classification model---how to use logistic regression modeling results to make business recommendations---is the subject of the next module.
+
+
+<!-- The easiest way to do this is to work with a simplified model, using the largest effect size predictors from the glmnet model.  We will refit the model using `method = glm` and just four predictors: `income`, `overage`, `house`, `handset_price`.  -->
+
+<!-- ```{r x31, exercise = T} -->
+<!-- # Convert to data frame in order to use dplyr select() and  -->
+<!-- # select the four predictors. -->
+<!-- dummy_frame <- data.frame(dummy_frame) %>%  -->
+<!--   select(income, overage, house, handset_price) -->
+
+<!-- # Fit new model -->
+<!-- (new_glm <- train(y = m$leave, -->
+<!--                   x = dummy_frame, -->
+<!--                   method = "glm")) -->
+
+<!-- ``` -->
+
+<!-- **Step 2** -->
+
+<!-- Next, hold three of these predictors---`income`, `house`, `handset_price`---constant at their means while we vary the predictor of interest, `overage`,  to investigate the relationship between overage and churn in terms of probability.  The procedure is to create a data frame, which we will use as the input to the `newdata` argument in the `predict()` function, with the desired values. The `expand.grid()` function makes it easy to create a data frame with rows for every unique combination of values. -->
+
+<!-- ```{r x32, exercise = T} -->
+<!-- # Create data frame with prediction values -->
+<!-- (prediction_frame <- expand.grid(income = mean(dummy_frame$income), -->
+<!--                                 house = mean(dummy_frame$house), -->
+<!--                                 handset_price = mean(dummy_frame$handset_price), -->
+<!--                                 overage = quantile(dummy_frame$overage))) -->
+
+<!-- ``` -->
+
+<!-- **Step 3** -->
+
+<!-- Add the probability to the data frame above used for prediction: -->
+
+<!-- ```{r x33, exercise = T} -->
+<!-- # Add probabilities -->
+<!-- (prediction_frame <- prediction_frame %>%  -->
+<!--   mutate(probability = predict(new_glm, type = "prob", newdata = prediction_frame)$LEAVE)) -->
+
+<!-- ``` -->
+
+<!-- **Step 4** -->
+
+<!-- Use the predicted probability to help non-technical audiences intuitively understand the relationship between a predictor and an outcome of interest.  If, for example, overage minutes were reduced--- perhaps by a change in company policy--- from the third quartile (200 minutes) to the first (60 minutes), how would that effect the probability of churn? -->
+
+<!-- ```{r x34, exercise = T} -->
+<!-- # Calculate difference in probabilities -->
+<!-- prediction_frame$probability[4] - -->
+<!--    prediction_frame$probability[2] -->
+
+<!-- ``` -->
+
+<!-- The probability of churn would go down by .175.  This means that out of 100 customers about 18 fewer would churn.  It would be relatively straightforward to compute a return on investment or ROI for a proposed change in overage policy, with the benefits defined by the subscription fees paid by the 18 retained customers minus the costs of lost overage fees for the entire customer population.  Figuring out what to do with a classification model---how to use logistic regression modeling results to make business recommendations---is the subject of the next module. -->
+
+
+
