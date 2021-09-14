@@ -11,12 +11,12 @@ Lightbulb is an R package featuring a collection of data analysis tutorials.  Th
 
 To install lightbulb:
 
-1. Install two R packages on your computer, `learnr` and `devtools`: `install.packages("devtools", "learner")`. 
+1. Install two R packages on your computer, learnr and devtools: `install.packages("devtools", "learner")`. 
 2. Load the `devtools` package: `library(devtools)`.
 3. Install the lightbulb package from this github repo: `install_github("jefftwebb/lightbulb")`.  
 
 To use the lightbulb tutorials:
 
-1. Load the `learnr` package: `library(learnr)`
-2. Open a `lightbulb` tutorial using the `run_tutorial()` function in `learnr`.  For example:  `run_tutorial("Probability", package = "lightbulb")`. This will automatically bring up a browswer window with the tutorial.
+1. Load the learnr package: `library(learnr)`
+2. Open a lightbulb tutorial using the `run_tutorial()` function in learnr.  For example:  `run_tutorial("Probability", package = "lightbulb")`. This will automatically bring up a browswer window with the tutorial on probability.
 
