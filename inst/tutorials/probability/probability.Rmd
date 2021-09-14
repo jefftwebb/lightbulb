@@ -344,7 +344,7 @@ quiz(
 ```
 
 
-```{r pmf1.5, echo = F}
+```{r pmf1_5, echo = F}
 quiz(
   question("The probability a customer purchases no more than 3 teas is given by:",
     answer("F(2)", message ="The answer is F(3).  F(3) is defined as p(X ≤ 3); the customer purchases 0, 1, 2, or 3 teas.  F(2) is defined as p(X ≤ 2); the customer purchasing 2 or fewer teas. However, F(2) does not include the possibility of purchasing 3 teas, implied by the statement no more than 3 teas. 1 - F(3) is the probability the customer purchases more than 3 teas."),
