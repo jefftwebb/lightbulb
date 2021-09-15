@@ -1,0 +1,688 @@
+---
+title: "Multiple Linear Regression"
+output: learnr::tutorial
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+library(tidyverse)
+library(arm)
+library(janitor)
+library(caret)
+library(gridExtra)
+
+
+sales <- read_csv("sales.csv") %>% 
+  clean_names() %>% 
+  mutate(price = (price * 4) %>%  round(2),
+         coupon = coupon+displaycoupon,
+         coupon = factor(ifelse(coupon == 0, "no", "yes"), levels = c("no","yes")),
+         display = display+displaycoupon,
+         display = factor(ifelse(display ==0, "no", "yes"), levels = c("no","yes")),
+         sales = ifelse(price < 4, sales + 100,
+                        ifelse(price < 4.5 & price > 4, sales+ 50, sales)) %>%  round(2)) %>% 
+  dplyr::select(-obs, -displaycoupon)
+
+
+model <- lm(sales~price, data = sales)
+
+newsales <- filter(sales, sales < 1000)
+
+rmse <- function(actual, fitted) sqrt(mean((actual - fitted)^2))
+
+newsales$price2 <- newsales$price * newsales$price
+
+newsales$price_centered <- newsales$price - mean(newsales$price)
+
+log_multiple <- lm(log(sales) ~ price + 
+                      coupon +
+                      display, data = newsales)
+
+new_multiple <- lm(sales ~ price + 
+                      coupon +
+                      display, data = newsales)
+
+multiple <- lm(sales ~ price + 
+                      coupon +
+                      display, data = sales)
+
+new_simple <- lm(sales ~ price, data = newsales)
+
+simple <- lm(sales ~ price, data = sales)
+
+caret_lm <- train(sales ~ price2 + display + coupon,
+                  data = newsales,
+                  method = "lm")
+
+caret_knn <- train(sales ~ price+ display + coupon,
+                  data = newsales,
+                  preProcess = c("center", "scale"),
+                  method = "knn")
+
+
+poly <- lm(sales ~ price + I(price^2) + coupon + display,
+   data = newsales)
+
+```
+
+
+
+## Introduction
+
+This tutorial focuses on using multiple linear regression to analyze the market response problem we investigated in the last tutorial.  For review, here is a plot of `sales ~ price` with the least squares regression line:
+
+```{r x1, exercise = T}
+# Visualize sales ~ price
+ggplot(sales, aes(price, sales)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_minimal() +
+  labs(title = "Sales ~ price")
+```
+
+The plot suggests there is a negative relationship between sales and price.  We tested the slope of that line using simple linear regression and discovered that it is statistically significant. However, as we noted, the linear fit was not great. Not only are there bumps in sales in certain price regions that are not well-explained by price alone, but the general relationship between price and sales is more curved than linear.  We can picture this non-linearity using a LOESS (or local regression) curve:
+
+```{r x2, exercise = T}
+# Visualize sales ~ price
+ggplot(sales, aes(price, sales)) +
+  geom_point() +
+  geom_smooth(method = "loess", se = F) +
+  theme_minimal() +
+  labs(title = "Sales ~ price")
+```
+
+Our aim here is to analyze additional factors contributing to sales, and, in doing so, to demonstrate some of the techniques discussed in the lecture videos as well as to equip you with the skills needed for this module's case. We will focus on the following (not necessarily in this order):
+
+- Multiple predictors
+- Outliers
+- Interactions
+- Log transformation of the outcome
+- Centering and scaling inputs
+- Polynomial regression
+- Model comparison
+- KNN regression using the `caret` package
+
+## Fitting the Model
+
+Other variables are available to add to the model:
+
+```{r x3, exercise=TRUE}
+# Look at the data
+glimpse(sales)
+summary(sales)
+
+```
+
+`price` is the only numeric predictor; the others---`display` and `coupon`---are binary factor variables.  
+
+Note that a binary factor could also be represented as a numeric indicator variable, coded as 0 or 1.  Such indicator variables are also known as [dummy variables](https://en.wikipedia.org/wiki/Dummy_variable_(statistics)), with 0 indicating the absence of a categorical effect and 1 indicating the presence.  If the categorical variable has just two levels then one dummy variable column will suffice, as here; but with more levels we need more columns to capture all of the information---equal to the number of factor levels minus one. If there were three possible categorical values, for example, then we would need  two dummy variable columns.  Having a column for *every* level of a variable---say, two columns for `display`---would be redundant, since all the information is included in just one column. Trying to use a column for every level creates what is known as the *dummy variable trap*, and will create problems for linear regression. (Representing categorical variables with dummy variables is also known as "one-hot encoding.")
+
+<!-- Notice that `coupon` and `display` are currently numeric variables.  Leaving them numeric (as opposed to making them factors) works fine for fitting and interpreting a multiple linear regression, since in either case---numeric or factor---we would interpret the coefficient as the change in $y$ given a one-unit change in $x$. However, categorical variables with *multiple* levels must be coded as factors for regression (even though, in the background, the `lm()` function automatically turns categorical variables into dummy variables for model fitting). -->
+
+We'll start out by fitting a model with all the predictor variables and compare it to the simple linear model.
+
+```{r x4, exercise=TRUE}
+# Fit simple linear model
+(simple <- lm(sales ~ price, data = sales)) %>% 
+  summary
+```
+
+```{r x4_5, exercise=TRUE}
+# Fit multiple linear model
+(multiple <- lm(sales ~ price + display  + coupon, data = sales)) %>% 
+  summary
+
+```
+
+How do we compare? The simple linear regression model had an $R^2$ of close to 0, meaning that the regression line explained almost no more of the variation in sales  than did the mean of sales.  By that measure, the multiple linear regression model, with higher $R^2$, is clearly better.  This is an informal comparison.  We can compare the two models formally using an F-test implemented in the `anova()` function.
+
+
+```{r x5, exercise=TRUE}
+# Compare models
+anova(simple, multiple)
+
+```
+
+The null hypothesis for this model comparison, like most statistical tests, is: no difference.  In this case, the statistically significant result, and large F value, suggests that the observed difference between the models is not due to chance---random variation in sampling. Thus, we can reject the null hypothesis of no difference. Comparing models in this way using `anova()`---technically this is called a likelihood ratio test or LRT---can be used only with "nested models" of the same outcome, models that include overlapping sets of predictors.  For example, `y ~ x1`, `y ~ x1 + x2`, and `y ~ x1 + x2 + x3` are nested models. LRT  allows us to compare such models for fit, for how well they describe the data. Clearly, both `coupon` and `display` are important predictors since the multiple regression model, which includes them, fits the data better than the simple linear regression, which does not. What if we *removed* `price` from the multiple regression model? Would that make the model worse?
+
+```{r x6, exercise=TRUE}
+# Compare models
+anova(multiple, lm(sales ~ coupon + display, data = sales))
+
+
+```
+
+Yes, removing `price` makes the model worse, statistically speaking, suggesting that it is a statistically significant contributor to the model, above and beyond the explanatory work done by `coupon` and `display`.  We will consider later whether a quadratic form of `price` would be an even stronger predictor. (By "quadratic form" I mean that we include a term representing `price` x `price` or $price^2$ in the model to capture the curved relationship between `price` and `sales`.)
+
+## Outliers
+
+This dataset contains a large, single outlier that has an outsized impact on the coefficient estimates and model fit.  Notice the difference in R-squared between the model with and without the outlier.
+
+```{r x7, exercise=TRUE}
+# Model with outlier
+multiple %>% 
+  summary
+```
+
+```{r x7_1, exercise=TRUE}
+# Model without outlier
+(new_multiple <- lm(sales ~ price + display  + coupon, 
+   data = filter(sales, sales < 1000))) %>% 
+  summary
+
+```
+
+
+The model fit, measured by $R^2$ is dramatically better without the outlier, and the coefficient estimates are, likewise, dramatically different in the two models. This is an overly influential point, which is apparent in the residual plot. The `lm()` function automatically creates 4 diagnostic plots.  The `which = 1` argument to `plot()` picks out the first, a residual plot.
+
+
+```{r x7_2, exercise=TRUE}
+# Residual plot
+plot(multiple, which = 1) 
+```
+
+This plot labels the outliers by row number.  The culprit is clearly visible in the upper right:  row 32.  In general, outliers are not merely anomalous observations in the raw data; instead they are observations that *produce large residuals*, that are not explained well by the model.  (An outlier in the raw data that does not turn into a large residual---that, in other words, the model does a good job of explaining---is not one we typically worry about.)  Let's take a closer look at this row containing the outlier. 
+
+```{r x8, exercise=TRUE}
+# Look at outlier
+filter(sales, sales > 1000)
+
+```
+
+This sales number was recorded in a week that included both display and coupon promotions, so a higher sales volume was perhaps to be expected.  But that high?  The top 5 sales volumes provide a sense of the magnitude of the outlier:
+
+```{r x9, exercise=TRUE}
+# Look at outlier
+arrange(sales, desc(sales)) %>% 
+  head(5)
+
+```
+
+This observation is almost three times larger than the next largest sales volume. It may be a  data collection error---a mistake---or the result of some other influence on sales that is unrecorded in this data set, such as a holiday.  
+
+What should we do?  
+
+In general, outliers *should not* be reflexively removed from a data set. Simply because the model fit is better without an outlier is not a reason to remove it!  Instead:
+
+1. Ask questions about data collection.  Is the outlier a mistake, the result of an error?  
+
+2. Ask questions of domain experts  to understand other factors influencing beer sales.  Could a variable be added, or created, that would explain cases of high sales volume? 
+
+Unfortunately, adding or creating a variable would not work in the case of this single outlier because a single point is not a pattern, and models are designed to discover patterns. In the absence of further information it makes sense to remove the outlier.  One sensible strategy in such situations would be to report results both with and without the outlier.  In this tutorial, subsequent modeling will be done without the outlier using a filtered dataset titled `newsales`. Incidentally, there are formal checks for identifying outliers (for example, using Cook's distance) but I think it makes more sense to evaluate observations producing large residuals on a case by case basis rather than mechanically.
+
+## Model Interpretation
+
+A multiple linear regression model can be used for causal inference---with caution---since each coefficient represents the change in the outcome associated with a one-unit change in the predictor, while *holding the other variables fixed*. In other words, the multiple regression model allows us to focus on the explanatory value of each variable *independent of the others*.  It allows us to focus on the unique effect of a single variable after having removed the others as possible explanations.  If you have been careful to include in the regression variables representing other potential explanations of the outcome, then the model, though it registers only *correlations*, can nevertheless be used---carefully---to make a *causal* argument.  More on this below.
+
+### Intercept
+
+The intercept is the fitted value of `sales` when the numeric predictors are 0 and the factor variable inputs are at their reference levels.  In this case notice that `price`, though numeric, will never equal 0: the store will not give beer away.  To make the intercept interpretable we would need to center `price` at its mean.  Then the intercept would represent the fitted value of `sales` when `price` is average (equals 0) and there is no promotion.
+
+How do we center a variable?  Simply subtract the mean from every individual observation:
+
+```{r x10, exercise=TRUE}
+# Center price
+newsales$price_centered <- newsales$price - mean(newsales$price)
+
+# Check that the mean of price_centered = 0
+mean(newsales$price_centered) %>% 
+  round(10)
+```
+
+Use the new `price_centered` variable in the model:
+
+```{r x10_1, exercise=TRUE}
+# refit model
+lm(sales ~ price_centered + display + coupon, data = newsales) %>% 
+  summary
+
+```
+
+Notice that the value of the intercept has changed dramatically in this model while the coefficients and $R^2$ are identical.  This illustrates an important point about centering.  It does not change the fit of a model, but instead merely changes the location of zero, as a convenience for interpreting the intercept. The model is not better, only more interpretable if 0 had not previously been within the range of the data.  Here is a plot of `sales ~ price` compared to `sales ~ price_centered`:
+
+```{r x11, exercise=TRUE}
+# Visualize sales ~ price_centered
+plot1 <- ggplot(newsales, aes(price, sales)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_minimal() +
+  labs(title = "Sales ~ price")
+
+plot2 <- ggplot(newsales, aes(price_centered, sales)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_minimal() +
+  labs(title = "Sales ~ price_centered")
+
+grid.arrange(plot1, plot2)
+```
+
+Exactly the same plot, but with shifted values on the x-axis. Now the intercept, 79.47, represents fitted sales (in 100s) when the numeric inputs are 0 and the categorical inputs are at the reference level---when price is average and there are no coupons or display promotions.
+
+### Coefficients
+
+- `price`: an increase of 1 unit in `price` is associated with a -75.39 change in the fitted value of `sales`, while holding the other variables fixed.  This coefficient, as we can see from the p-value (essentially 0),  is statistically different from 0, from which we can conclude that the observed value is unlikely to have occurred by chance.
+- `display` (or, more precisely, `displayyes`):  an increase of 1 unit in `display`, from `no` to `yes`, is associated with 72.55 change, on average, in the fitted value of `sales`, while holding the other variables fixed. Another way to think about this coefficient is that it represents the difference in fitted sales between having a display and not having a display. The coefficient, in other words, represents a comparison to the reference level, which is no display. R automatically includes in the name of the coefficient the factor level above the reference level, here `yes`.  The way to read this:  if we change `display` to `yes` then we expect an increase of 72.55 in `sales`. (If the factor levels in this variable were reversed, with `yes` as the reference level, then the variable name would read `displayno` and the coefficient would have the opposite sign.)
+- `coupon` (or `couponyes`):  an increase of 1 unit in `coupon`, from `no` to `yes`, is associated with a 212.40 change, on average, in the fitted value of `sales`, while holding the other variables fixed. The coefficient represents the difference in fitted sales between a coupon promotion and the reference level: no coupon promotion.
+
+### Effect Sizes and Causality
+
+An effect size is simply the absolute value of the  coefficient estimate. The larger the effect size (in absolute terms) the  stronger the relationship between the predictor and outcome. (Remember: the p-value is not an effect size, but simply a measure of how unlikely the observed coefficient would be if the null hypothesis were true.)  In this instance we can see that `coupon`  had by far the largest effect on `sales`,  after taking into account  `price` and `display` as other possible explanations of `sales`.  Usually regression results are regarded as merely uncovering correlations or associations, with no implication of causality (you may have heard the phrase:  "correlation is not causation").  However, assuming that we are not missing  other explanations of sales, such as seasonality or holidays, we might think about using these modeling results to make a  causal argument for the *impact* of coupon promotions on beer sales. What would be required? To establish that $x$ *causes* $y$ would require additional pieces of evidence beyond a statistically significant coefficient for $x$.  Minimally: 
+
+- there must be covariation between $x$ and $y$ (look for a statistically significant $\beta$ coefficient for x).
+- there must be a time-ordered relationship between $x$ and $y$: first $x$ then $y$.
+- the researcher must eliminate plausible alternative explanations and make an argument.
+
+If we were prepared to argue these points, we could say that a coupon promotion will produce, on average, 212 more units sold. Notice that this language---"will produce"---is causal.
+
+Rather than expressing effect sizes as point estimates, it is more realistic to report confidence intervals. The method, as we've seen, is to add to and subtract from the point estimate approximately two standard errors. In the case of `coupon` the calculation would be:
+ 
+```{r x12, exercise=TRUE}
+(lower <- 212.4 - 2 * 16.94)
+(upper <- 218.4 + 2 * 16.94)
+```
+
+### Centering and Scaling 
+
+Centering an input, as we've seen, can make the intercept interpretable when 0 is not observed in the data for continuous variables. Centering is thus an interpretive convenience.  Similarly, scaling a continuous input variable can be an interpretive convenience when variables have very different ranges.  For example, consider two numeric variables, one with a range of [0, 1] and another with a range of [0, 100]. In the first case a one-unit increase would go from the minimum to the maximum, while in the second it would represent just a small fraction of the range. In such situations comparing coefficients to determine relative effect sizes can be difficult.
+
+How do we scale a continuous input variable? Simply divide each observation by one standard  deviation.  This standardizes the variables, putting them on roughly the same scale. 99% of the scaled observations will be in the range [-3, 3]. Note: this procedure is restricted to continuous variables; you would not want to scale a dummy variable. Here is an example of centering and scaling `price`: 
+
+```{r x13, exercise=TRUE}
+# Center and scale by hand, dividing by 1 SD
+((newsales$price - mean(newsales$price)) /  sd(newsales$price)) %>% 
+  head
+
+# Use base R function, scale()
+scale(newsales$price) %>% head
+```
+
+Some literature suggests that dividing by 2 standard deviations is better because it makes the newly scaled variables more comparable to the binary scale of dummy variables or factor variables.
+
+```{r x13_1, exercise=TRUE}
+# Center and scale by hand, dividing by 2 SD
+((newsales$price - mean(newsales$price)) / (2 * sd(newsales$price))) %>% 
+  head
+
+# Use rescale() in arm package
+library(arm)
+rescale(newsales$price) %>% head
+
+```
+
+
+Again, why center and scale?  When input variables are on substantially different scales it can be hard to compare effect sizes, represented in regression coefficients, and effect sizes (rather than p-values) are what we use to reason about relationships in our data. To solve this problem, we need to rescale continuous variables so that unit changes are comparable. Rescaling in the case of price  won't make much difference since the range of the variable is already quite small.  In other cases, it will make a *huge* difference.  
+
+Here is a made up example to illustrate the point:
+
+
+```{r include = F}
+# Rescaling example
+
+set.seed(123)
+
+# Create coefficients
+a <- 1
+b1 <- 2
+b2 <- 10
+
+# Create predictors and error
+x1 <- runif(n = 1000, min = 1, max = 1000) # range 1:1000
+x2 <- rbinom(n = 1000, size = 1, prob = .5) # range 0:1
+error <- rnorm(n = 1000, mean = 0, sd = 10)
+
+# Create outcome
+y <- a + b1 * x1 + b2 * x2 + error
+
+# Save as a data frame
+rescale_data <- data.frame(x1 = x1,  
+                           x2 = x2,
+                           y = y)
+
+```
+
+```{r x14, exercise=TRUE}
+# Look at rescale example data
+rescale_data %>% 
+  head
+```
+
+In this example `x1` is a continuous predictor, with a range between 1 and 1000, while `x2` is binary.  Here is the regression:
+
+```{r x14_5, exercise=TRUE}
+# Run regression with unscaled inputs
+lm(y ~ x1 + x2, rescale_data) %>%  
+  summary
+
+```
+
+The regression output tells us that `x2` has a much larger effect size than `x1`.  But this is misleading.  A coefficient represents the expected change in $y$ associated with a one unit change in the predictor.  One unit is 100% of the range of `x2` but just .1% of the range of `x1`.  Look what happens when we center and scale:
+
+```{r x15, exercise=TRUE}
+# Run regression with centered and scaled continuous predictor
+lm(y ~ rescale(x1) + x2, rescale_data) %>%  
+  summary
+
+```
+
+Put on comparable scale by standardizing, `x1` turns out to have a *much* larger effect size than `x2`, exactly the reverse of what we initially thought.  
+
+When should we center and scale?  
+
+1. *To prepare data for machine learning*. Most machine learning algorithms require inputs to have similar ranges.
+
+2. *To compare effect sizes of coefficients when input variables are on different scales*. Note that scaled inputs are easy to compare but hard to interpret.  After scaling, 1 unit is measured in terms of standard deviations, which is not intuitive.  The above coefficient for `x1` would be interpreted as the change in `y` associated with a 2 standard deviation change in `x1`, when `x2` is held fixed.
+
+When should we *not* center and scale?  
+
+Centering and scaling breaks the relationship with the original units.  If the goal is to talk about the effect size of a predictor in terms of the original units---say, dollars or years---then we should leave the inputs unscaled.
+
+## Model Improvement
+
+### Log Transformation
+
+Given the wide range of sales observations, from 11 to 569 (after removing the outlier), we might expect that log transforming  `sales` would improve the model.  Why? Generally speaking, any time the range of the outcome variable is large, or the values are skewed,  log transforming the outcome may improve the model. (While we will sometimes call this a "log model," remember that it remains a *linear* model. Later in the course you will be introduced to logistic regression, which is used to model a binary outcome.  Do not get  "log" confused with "logistic"! These are totally different models.) To appreciate the effect of log transformation it is helpful to look at an example.
+
+Consider this histogram of `sales`.
+
+```{r x16, exercise=TRUE}
+ggplot(newsales, aes(sales)) +
+  geom_histogram() +
+  labs(title = "Histogram of sales") +
+  theme_minimal()
+
+```
+
+The `sales` variable is strongly skewed, even without the outlier.  Let's compute the natural log of `sales` using the `log()` function in R.  Here is a histogram of log sales :
+
+```{r x16_1, exercise=TRUE}
+ggplot(newsales, aes(log(sales))) +
+  geom_histogram() +
+  labs(title = "Histogram of log sales") +
+  theme_minimal()
+
+```
+
+The log transformation makes a big difference! It compresses the range of the observations and removes the right skew, making the distribution more normal in shape. 
+
+Log transformation will often improve the fit of a linear model.  Why? Think about it this way:  
+
+- Your goal in creating a model is to faithfully summarize the data, but outlying observations can frustrate that goal by unduly influencing the model.  Consider a simple data summary like a mean.  If the data are skewed, the mean will be pulled away from the center of the data and will not be very representative. The same thing happens in a linear model when the outcome variable is skewed.
+
+- If we can make outliers less anomalous with a data transformation then we can reduce their influence and improve the model.  That is the point of log transforming the outcome variable. 
+
+Will log transforming `sales` improve the model? We can answer this question empirically .  Recall that the $R^2$ of the multiple regression model of sales without the outlier was .65.  What is $R^2$ for a model of log `sales`?
+
+
+
+```{r x17, exercise=TRUE}
+(log_multiple <- lm(log(sales) ~ price + coupon + display, 
+                    data = newsales)) %>% 
+  summary
+```
+
+$R^2$ for the log model is also .65, so not much difference. We should double check this result.  These are not nested models---the outcome variable is not the same---so we cannot use `anova()` to compare them statistically. But we could also use other error metrics such as RMSE, which is approximately equivalent to residual standard error. 
+
+However, there are complications. Remember that the fitted values from a log model will be expressed in log transformed units of the outcome variable.  To calculate RMSE, then, we must subtract the model's fitted values from the observed values of the outcome.  To do so we must to re-transform the fitted values from the log model to return them to the same, original scale as the outcome.  Since $e^{log(x)} = x$ we need exponentiate the fitted values for use in the RMSE formula. (In R, raising $e$ to a power, called "exponentiation," is performed with the `exp()` function).
+
+
+```{r x18, exercise=TRUE}
+# Create RMSE function
+rmse <- function(actual, fitted) sqrt(mean((actual - fitted)^2))
+
+# RMSE for log model
+rmse(newsales$sales, exp(fitted(log_multiple)))
+
+# RMSE for non-log model
+rmse(newsales$sales, fitted(new_multiple))
+```
+
+This result supports the difference we observed in $R^2$:  log transformation does not improve model fit.  RMSE is lower in the original model. Still, as an illustration, let's interpret the coefficients for the above log model.  Note that it is always possible to leave the coefficients expressed in log units and interpret them as for a model with an unlogged outcome. For example, the coefficient for `price` in the log model, -.85, could be interpreted as the change in log sales associated with one unit increase in price, holding the other predictors constant.  This provides limited insight, however, since the units expressed in log sales are not intuitive. So, how would we make the scale of these coefficients easier to understand?
+
+- We need to exponentiate coefficients in a log model to get the percentage increase in the outcome associated with a 1 unit increase in the predictor. Thus, `exp(-.846)` = .4291, which is a 57% decrease compared the baseline of 1: .4291 - 1  = -.57 * 100 = -57%. As a rule of thumb, we can dispense with exponentiation when the coefficient is close to 1 because exponentiating returns a number very close to the original. For example, `exp(.02)` = 1.02, representing a 2% increase over the baseline of 1.  (The calculation goes like this: 1.02 - 1 = .02 * 100 = 2%.) In this example the rule of thumb works well. But it does not work well for a coefficient like `price` which is further from 0, as we saw above.  
+
+How would coefficients in a log-log model, in which *both* the outcome and a predictor had been log transformed, be interpreted?  Mercifully, we don't need to exponentiate.  Instead, we can interpret the coefficient directly as a percentage increase.  Suppose the coefficient for a log transformed predictor in a log-log model was 1.74.  This would mean that each 1% increase in the log predictor is associated with a 1.74% increase in the outcome. 
+
+### Polynomial Regression
+
+Earlier we observed that the relationship between price and sales was curved.  Non-linear relationships can be captured using linear regression in a variety of ways:
+
+- log transforming the outcome variable
+- adding terms with exponents (polynomial regression)
+- adding interactions between predictors. 
+
+Let's introduce polynomial regression by fitting a model with a quadratic term for `price`. Perhaps the easiest way to do this is to use the `I()` function, which allows us to alter the variable on the fly, like this:  
+
+```{r x19, exercise=TRUE}
+# Fit the polynomial regression
+(poly <- lm(sales ~ price + I(price^2) + coupon + display,
+   data = newsales)) %>% 
+  summary
+```
+
+Is this model with quadratic `price` better? Use the LRT to compare models:
+
+```{r x19_1, exercise=TRUE}
+# Compare it to the reference model
+anova(new_multiple, poly)
+
+```
+
+Adding the quadratic term improves the model: $R^2$ has gone up (slightly) and residual standard error has gone down. Note:
+
+- Whenever adding a higher order term all the lower order terms need to be included in the model. Hence `price` also should be included along with the quadratic term.
+
+- It is possible (though I think somewhat awkward) to add a quadratic variable, consisting of `price` x `price`, directly to the dataset.  I prefer to accomplish the same thing while fitting the model with `I(price^2)`.
+
+Notice that both the coefficient and standard error for `price` get quite large after including the quadratic term.  There are complicated reasons for this, related to the multicollinearity between `price` and `price^2`. [Multicollinearity](https://en.wikipedia.org/wiki/Multicollinearity) occurs when two predictors are strongly correlated but is only a problem for model interpretation; it does not affect model fit or predictive uses of the model. The problem could be addressed in this case by centering and scaling the variable with the quadratic term, which will return the coefficients and standard errors to interpretable quantities.
+
+In this model the coefficient for the quadratic term is negative, meaning that the resulting parabola is facing downwards.  Here is an illustration of the situation:
+
+
+```{r include = F}
+newd <- newsales
+
+newd$fitted <- lm(sales ~ price + I(price^2), data = newd) %>%  fitted
+```
+
+```{r echo = F}
+ggplot(newd, aes(price, sales)) + 
+  geom_point()+
+  labs(title = "sales ~ price + price^2")+
+  theme_minimal()+
+  geom_line(aes(price, fitted), col = 2)
+```
+
+While it is certainly possible to add higher order terms than quadratic to a model, doing so risks creating an overly complicated model, and should be avoided unless there is a strong rationale or explanation for it.
+
+
+### Interactions
+
+As noted above, interactions are another way of fitting non-linear data. In this case our knowledge of the business context is admittedly limited, but we might nevertheless speculate that the relationship between price  and sales will differ by whether there was also a coupon promotion.  In other words, coupon promotion might systematically change the relationship between price and sales. This situation--- where a relationship between the predictor and the outcome differs by the level of a third variable--- is called an interaction, and is an extremely powerful modeling technique,  both for improving model fit and for explaining relationships in the data. 
+
+To create an interaction use `*` rather than `+` to connect the terms in the model formula: `sales ~ price * coupon`. In fitting this model, however, we will also center price using the `scale()` function to make the interpretation of model coefficients simpler.  (This is usually the case: the coefficients in an interaction model are more meaningful when the continuous inputs are centered.) `scale()` has two arguments, `center` and `scale`, both of which are set to `T` by default; the function will perform centering only if we explicitly turn off scaling:  `scale(x, scale = F)`. In this model we will center, but not scale, price.
+
+```{r x20, exercise=TRUE}
+# Fit an interaction model
+lm(sales ~ scale(price, scale = F)  * coupon,
+   data = newsales) %>% 
+  summary
+```
+
+The interaction term is not quite significant, meaning that the relationship between `price` and `sales` does not clearly depend on `coupon`. Here is a picture of the situation.  Plotting interactions aids in understanding them!
+
+
+```{r x21, exercise=TRUE}
+ggplot(newsales, aes(price, sales, col=coupon))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)+
+  labs(title = "sales ~ price * coupon") +
+  theme_minimal()
+```
+
+
+Since the regression lines are not parallel (or even close to parallel), the `sales ~ price` relationship *seems* to depends on whether `coupon` is `no` or `yes`. But that conclusion appears to be statistically uncertain, despite the fairly large effect size. The standard error for the interaction term is quite large.
+
+Interpreting the coefficients is tricky in a model with interactions. 
+
+- *Intercept: 102.41*. This is the predicted value of the outcome, `sales`, when the predictor variables are either 0 (if continuous) or at the reference level (if categorical, as in this case).  Here the model predicts sales of 102.4, on average, when price is 0 (or average for the centered variable) and when coupon is at its reference level of 0 (when there is no coupon promotion).
+- *scale(price, scale = F): -103.35*. In a model with an interaction, the coefficient for an interacted variable by itself is known as a "main effect." Main effects in interaction models are conditional on the variable with which they are interacted.  In this case, the coefficient for centered price is the predicted average change in sales associated with a 1-unit change in price *when coupon is at its reference level of 0*. 
+- *coupon: 215.38*. This is also a main effect. The coefficient for coupon is the predicted average change in sales associated with changing coupon from it reference level of 0 to one *when centered price is 0 (or average)*. Moreover, we can use the output to estimate sales at average price for a coupon promotion:  102.41 + 215.38.
+- *scale(price, scale = F):coupon: 90.58.* The coefficient in this interaction represents the difference in slope between the regression line of `sales ~ price` when coupon is `no` and when coupon is `yes`.  In other words, the relationship between sales and price gets stronger---the regression line becomes more positive, steeper---when coupon = `yes` compared to coupon = `no`.  This relationship is clear in the plot.  Specifically, an increase of 1 unit in price is predicted to add, on average, 90.58 more sales when coupon = `yes` than when coupon = `no`.
+
+
+
+<!-- By contrast, for purposes of illustration, here is a significant interaction using simulated data. -->
+
+
+<!-- ```{r include = F} -->
+<!-- set.seed(123) -->
+<!-- # Create coefficients -->
+<!-- a <- 1 -->
+<!-- b1 <- 5 -->
+<!-- b2 <- 10 -->
+<!-- b3 <- 15 -->
+
+<!-- # Create predictors and error -->
+<!-- x1 <- rnorm(n = 1000, mean = 100, sd = 10) -->
+<!-- x2 <- rnorm(n = 1000, mean = 100, sd = 100) -->
+<!-- error <- rnorm(n = 1000, mean = 50, 1000) -->
+
+<!-- # Create outcome -->
+<!-- y <- a + b1 * x1 + b2 * x2 + b3 * x1 * x2 + error -->
+
+<!-- interaction_data <- data.frame(x1=x1, -->
+<!--                                x2=x2, -->
+<!--                                y=y) -->
+
+<!-- ``` -->
+
+
+
+<!-- ```{r x22, exercise=TRUE} -->
+<!-- # Look at interaction example data -->
+<!-- interaction_data %>%  -->
+<!--   head -->
+
+<!-- # Run regression -->
+<!-- lm(y ~ x1 * x2, data = interaction_data) %>%  summary -->
+
+<!-- ``` -->
+
+
+
+
+<!-- This interaction, between two continuous predictors, is, by design, strongly significant.   Interpreting the coefficients for interactions is tricky, and, as mentioned above, it can help a lot to visualize the interaction. The problem here is that the two interacted variables are continuous, but we can only visualize an interaction when the third variable is categorical. Therefore, for purposes of visualization, we will transform `x2` into a binary variable: -->
+
+
+<!-- ```{r x23, exercise=TRUE} -->
+
+<!-- interaction_data %>%  -->
+<!--   mutate(x2_bin = ifelse(x2 > mean(x2), 1, 0), -->
+<!--          x2_bin = factor(x2_bin)) %>%  -->
+<!--   ggplot(aes(x1, y, col = x2_bin)) + -->
+<!--   geom_point()+ -->
+<!--   geom_smooth(method = "lm", se = F) -->
+<!-- ``` -->
+
+
+<!-- These regression lines are not parallel: the relationship between `x1` and `y` definitely varies by `x2`, which we made into a binary variable for visualization.    We can see that the relationship between `x1` and `y` is stronger when `x2_bin` is 1, compared to 0.  Here is how the  interaction coefficient from the model should be interpreted: -->
+
+<!-- - For every one unit increase in `x1`, the regression line for the relationship between `x` and `y` increases by the amount of the coefficient, 15.06. Or, equivalently: -->
+<!-- - For every one unit increase in `x2` the regression line between `x1` and `y` increases by 15.06. -->
+
+
+## Linear vs. KNN Regression
+
+This module is on multiple linear regression. To understand  a method's  strengths and weaknesses, it helps to compare it to  other methods. In this section I would like to very briefly compare our multiple linear regression model of market response with a K-Nearest Neighbors or KNN regression model. Typically, because linear regression is linear, it tends to struggle with data that includes complicated non-linear relationships.  By contrast machine learning methods such as KNN  regression will often work well with such data. So, let's compare how these different methods perform in modeling sales. For this task, we will use the `caret` package, which simplifies the process of fitting multiple models with different methods. One of the problems in R is that there is no universal user interface  for functions implementing different analytic methods. This can make it hard to iterate between, for example, linear regression and other methods like  random forest or gradient boosting. All of  methods  are implemented in packages with functions that have slightly different syntax. `caret` simplifies this, by supplying consistent user interface  for a large number of modeling functions. "Caret"  stands for **c**lassification **a**nd **re**gression **t**raining;  more information can be found at the [package website](http://topepo.github.io/caret/index.html).
+ 
+There is a lot of functionality built into `caret`;  we will just be scratching the surface here. 
+ 
+The main function  for fitting models in `caret` is `train()`. Most simply, `train()` requires: a formula argument, a data argument, and a method argument.  It is important to recognize that `caret`  simply repackages existing functions like `lm()` to provide a common interface. Therefore, the results for a linear regression using `caret`  will be identical to the results using `lm()`.  For `caret` we need to create a `price^2` variable and add it to the dataset.
+
+```{r include = F}
+newsales$price2 <- newsales$price * newsales$price
+
+```
+
+```{r x24, exercise=TRUE}
+# Create price2
+newsales$price2 <- newsales$price * newsales$price
+
+# Check
+newsales %>% 
+  dplyr::select(price, price2) %>% 
+  head
+```
+
+To get the hang of caret, let's fit a familiar linear regression model. To do so we simply specify the method as "lm."
+
+```{r x25, exercise = T}
+# Fit linear model using train()
+(caret_lm <- train(sales ~ price + price2 + display + coupon,
+                  data = newsales,
+                  method = "lm")) %>% 
+  summary
+
+```
+
+And here is the same model using `lm()`:
+
+```{r x26, exercise = T}
+
+# Identical to lm() results
+lm(sales ~ price + I(price^2) + display + coupon, data = newsales) %>% 
+  summary
+```
+
+As you can see, the results are identical.  That's because caret is just providing a wrapper for the base `lm()` function.
+
+In caret, it is trivial to change methods.  However, machine learning methods usually require centered and scaled data, so we'll need to make that change also to fit a KNN regression.  We can accomplish that inside the `train()` function using the `preProcess` argument.  The quadratic term can be omitted since KNN should be able to model non-linearity in the data with out that specific directon.  Here is the model:
+
+```{r echo = T}
+# Fit knn model using train()
+caret_knn <- train(sales ~ price  + display + coupon,
+                  data = newsales,
+                  preProcess = c("center", "scale"),
+                  method = "knn")
+```
+
+Caret automatically handles a lot of the steps involved in fitting a machine learning model. In this case, it has searched for, and fitted the model with, the optimal value of K, the number of nearest neighbors.  
+
+Is this KNN model better than the linear model? The simplest way to answer this question is to compare models with RMSE:
+
+```{r x28, exercise=TRUE}
+# RMSE for linear model
+rmse(newsales$sales, predict(caret_lm))
+
+#RMSE for KNN model
+rmse(newsales$sales, predict(caret_knn))
+
+```
+ 
+The KNN model is slightly better.  Here are plots of the fitted values from the two models for comparison:
+
+```{r echo=F}
+pd <- newsales %>% 
+  mutate(fitted_knn = predict(caret_knn),
+         fitted_lm = predict(caret_lm))
+
+ggplot(pd, aes(price, sales))+
+  geom_point()+
+  geom_line(data=pd, aes(price, fitted_lm), col=2)+
+  labs(title = "Linear market response model",
+       subtitle= "Fitted values in red")+
+  theme_minimal()
+  
+
+ggplot(pd, aes(price, sales))+
+  geom_point()+
+  geom_line(data=pd, aes(price, fitted_knn), col=2)+
+  labs(title = "KNN market response model",
+       subtitle= "Fitted values in red")+
+  theme_minimal()
+```
+
+Clearly, both models capture a great deal of non-linearity in the data. This illustrates that a linear model, if fit properly, can handle *non*-linear data quite well.
