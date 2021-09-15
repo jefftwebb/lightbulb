@@ -248,7 +248,7 @@ for(i in 1:sims){
 
 
 
-```{r x5.5, exercise=T}
+```{r x5_5, exercise=T}
 
 # Visualize the bootstrap distribution of medians
   ggplot(data.frame(median = boot_distribution), aes(median)) +
@@ -322,7 +322,7 @@ In general in R programming it is best to avoid loops, as they can be quite slow
 
 In a for loop, the index or counter for each iteration is defined in the first line of code: `for(i in 1:n)`.  Here the index is `i` (but we could choose any string, such as `for(reps in 1:n)`). In the first loop `i` will be 1, in the second 2, and so on.  If we want to store information generated in each loop, then we need to initialize an empty vector or data frame beforehand.  In the above code we indexed the initialized vector, `bootstrap_distribution`, with `i`---``bootstrap_distribution[i]`---so that each loop adds a new value to the vector up to `n`. Here is a simple example.
 
-```{r x10.25, exercise = T}
+```{r x10_25, exercise = T}
 
 for(i in 1:10){
   print(i)
@@ -336,7 +336,7 @@ for(i in 1:10){
 
 Setting the seed once before the loop will suffice to make the results reproducible.  That is because R will automatically change the seed with each new random process (each bootstrap sample in each loop in this case) but will do so deterministically.  So the seed for each loop will not be the value set originally---if it were there would be no variation---but will be deterministically related to the one before.  Consider:
 
-```{r x10.5, exercise = T}
+```{r x10_5, exercise = T}
 set.seed(123)
 sample(c("A", "B", "C", "D", "E"), replace = T)
 sample(c("A", "B", "C", "D", "E"), replace = T)
