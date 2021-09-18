@@ -2,6 +2,8 @@
 title: "The Bootstrap"
 output: learnr::tutorial
 runtime: shiny_prerendered
+description: >
+  Learn how to Use the bootstrap to estimate standard errors and confidence intervals. 
 ---
 
 ```{r setup, include=FALSE}

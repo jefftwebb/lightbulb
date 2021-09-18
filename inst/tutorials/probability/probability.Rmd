@@ -2,6 +2,8 @@
 title: "Using Probability and Simulation to Solve Business Problems"
 output: learnr::tutorial
 runtime: shiny_prerendered
+description: >
+  Review concepts of probability, and practice using probability simulation to solve a business problem. 
 ---
 
 ```{r setup, include=FALSE}

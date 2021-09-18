@@ -2,6 +2,8 @@
 title: "Real World Regression"
 output: learnr::tutorial
 runtime: shiny_prerendered
+description: >
+  Learn to deal with real world problems when using linear regression including (but not limited to) missing data and skewed data.
 ---
 
 ```{r setup, include=FALSE}

@@ -2,6 +2,8 @@
 title: "Multiple Linear Regression"
 output: learnr::tutorial
 runtime: shiny_prerendered
+description: >
+  Learn how to fit and interpret multiple linear regression models.
 ---
 
 ```{r setup, include=FALSE}

@@ -2,6 +2,8 @@
 title: "Classification with Logistic Regression"
 output: learnr::tutorial
 runtime: shiny_prerendered
+description: >
+  Learn to use logistic regression to do binary classification, and practice converting results into reportable quanitities.
 ---
 
 ```{r setup, include=FALSE}
