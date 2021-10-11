@@ -16,15 +16,16 @@ library(kableExtra)
 
 delay <- read_csv("data/flight_delay_clean.csv")
 
+
 # set.seed(127)
 # click_data <- data.frame(Day = 1:30,
 #                  A = round(rnorm(30, mean = 300, sd = 120), 2),
 #                  B = abs(round(rnorm(30, mean = 250, sd = 170), 2)))
 # 
 # 
-# write.csv(click_data, "click_data.csv")
+# write.csv(click_data, "data/click_data.csv", row.names = F)
 
-click_data <- read_csv("data/click_data.csv")[,-1]
+click_data <- read_csv("data/click_data.csv")
 
 
 ```
@@ -34,7 +35,7 @@ click_data <- read_csv("data/click_data.csv")[,-1]
 
 Data analysis often begins with a question or hypothesis, commonly stated in terms of a relationship between variables  or difference between groups. Is sales related to price?  Do customers who see ad A behave differently than those who see ad B?  If exploratory data analysis  turns up an  apparent relationship or difference we will often want to ask whether the discovery is "statistically significant." Is it just a quirk of a particular sample of data (in which case it would not likely to appear in another sample), or does it exist in the population?
 
-**Population**:  the total set of similar items or events, existing or hypothetical,  needed to answer a question or conduct and evaluate an experiment. The numeric characteristics of a population, such as mean and standard deviation (denoted with the Greek letters $\mu$ and $\sigma$), are called *parameters*.
+**Population**:  the total set of similar items or events, existing or hypothetical,  needed to answer a question or conduct and evaluate an experiment. The numeric characteristics of a population, such as mean and standard deviation (denoted with the Greek letters $\mu$ and $\sigma$) are called *parameters*.
 
 **Sample**:  a subset of individuals or objects collected or selected from the population by a defined procedure.  The numeric characteristics of the sample are called *statistics*.  The mean and standard deviation of a sample are denoted $\bar x$ and $s$.
 
