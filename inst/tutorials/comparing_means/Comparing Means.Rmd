@@ -15,15 +15,6 @@ library(tidyr)
 library(kableExtra)
 
 delay <- read_csv("data/flight_delay_clean.csv")
-
-# set.seed(127)
-# click_data <- data.frame(Day = 1:30,
-#                  A = round(rnorm(30, mean = 300, sd = 120), 2),
-#                  B = abs(round(rnorm(30, mean = 250, sd = 170), 2)))
-# 
-# 
-# write.csv(click_data, "click_data.csv")
-
 ```
 
 
@@ -80,21 +71,23 @@ This tutorial reviews foundational statistical concepts and walks through specif
 Suppose that you work as an analyst at a marketing firm and you've been asked to to determine which of two ads on a website, A or B, seems to generate more clicks from customers. You decide to run an A/B test in which you randomly select visitors to the website to see one of the two ads, A or B. (Random selection is important: it ensures there will be no systematic difference between the two groups, other than ad exposure, and that the samples of customers are representative of the population of customers.) The data generated from the experiment consists in  total daily clicks. You run the experiment for 30 days. The data you get back from IT thus consists in 30 rows.   The top six rows looks like this:
 
 ```{r, echo = F}
+set.seed(127)
+d <- data.frame(Day = 1:30,
+                 A = round(rnorm(30, mean = 300, sd = 120), 2),
+                 B = abs(round(rnorm(30, mean = 250, sd = 170), 2)))
 
-click_data <- read_csv("data/click_data.csv")[,-1]
-
-click_data[1:6,] %>% 
+d[1:6,] %>% 
   kable %>% 
   kable_styling()
 
-A <- click_data$A
+A <- d$A
 
 ```
 
 Take a closer look at the click data:
 
 ```{r summary, exercise = T}
-click_data %>% 
+d %>% 
   select(-Day) %>% 
   summary
 ```
@@ -105,7 +98,7 @@ Hmmmm.  The mean is slightly higher for the A group, compared to B, as is the me
 Plot the observations.
 
 ```{r plot, exercise = T}
-click_data %>% 
+d %>% 
   pivot_longer(-Day, names_to = "Group", values_to = "Clicks") %>% 
   ggplot(aes(Clicks, col = Group)) +
   geom_density() +
@@ -452,7 +445,7 @@ Here is the calculation of $t$:
 ```{r x11, exercise = T}
 # Extract values
 
-click_data %>% 
+d %>% 
   pivot_longer(-Day, names_to = "Group", values_to = "Clicks") %>% 
   group_by(Group) %>% 
   summarize(mean = mean(Clicks) %>%  round(2),
@@ -509,8 +502,8 @@ It is a good idea to double check your work using the built-in `t.test()` functi
 ```{r x13, exercise = T}
 # Two-sample, two-tailed t-test
 
-t.test(x = click_data$A, # first sample
-       y = click_data$B,  # second sample
+t.test(x = d$A, # first sample
+       y = d$B,  # second sample
        alternative = "two.sided") # argument for two tailed test
 
 ```
@@ -550,7 +543,7 @@ Here is the calculation for the A/B test:
 
 ```{r x14, exercise = T}
 # Calculate 95% z-confidence interval for the difference in means
-click_data %>% 
+d %>% 
   summarize(n = n(),
             difference = mean(A) - mean(B), # Calculate the mean difference.
             se = sqrt(var(A)/n + var(B)/n), # Calculate SE
@@ -603,7 +596,7 @@ Here is the calculation for the 95% t-intervals:
 
 ```{r x15, exercise = T}
 # Calculate 95% t-interval for the difference in means
-click_data %>% 
+d %>% 
   summarize(n = n(),
             difference = mean(A) - mean(B),
             se = sqrt(var(A) / n + var(B) / n),
