@@ -24,6 +24,9 @@ delay <- read_csv("data/flight_delay_clean.csv")
 # 
 # write.csv(click_data, "click_data.csv")
 
+click_data <- read_csv("data/click_data.csv")[,-1]
+
+
 ```
 
 
@@ -80,8 +83,6 @@ This tutorial reviews foundational statistical concepts and walks through specif
 Suppose that you work as an analyst at a marketing firm and you've been asked to to determine which of two ads on a website, A or B, seems to generate more clicks from customers. You decide to run an A/B test in which you randomly select visitors to the website to see one of the two ads, A or B. (Random selection is important: it ensures there will be no systematic difference between the two groups, other than ad exposure, and that the samples of customers are representative of the population of customers.) The data generated from the experiment consists in  total daily clicks. You run the experiment for 30 days. The data you get back from IT thus consists in 30 rows.   The top six rows looks like this:
 
 ```{r, echo = F}
-
-click_data <- read_csv("data/click_data.csv")[,-1]
 
 click_data[1:6,] %>% 
   kable %>% 
