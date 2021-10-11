@@ -24,7 +24,9 @@ A <- df$A
 
 ## Introduction
 
-The reading for this module discussed a variety of non-parametric statistical techniques for comparing means. This tutorial focuses on one, the bootstrap, and walks you through how to  use the technique to estimate the [standard error](https://en.wikipedia.org/wiki/Standard_error) (SE) not just for the mean but for *any* sample statistic. 
+One of the assumptions of a t-test is that the observations being compared are normally distributed.  This is what makes it a so-called *parametric* statistical test: it uses the *parameters* of the normal distribution (mean and standard deviation) to detect a difference between groups. But what if the observations being compared are not normally distributed? The t-test is actually quite robust to violations of the normality assumption. Still, it may sometimes be prudent to double check t-test results with a *nonparametric* statistical test that makes no assumptions about the data, such as the `wilcox.test()`. 
+
+This tutorial focuses on a general non-parametric approach for estimating standard errors, the bootstrap, and walks you through how to  use the technique to estimate the [standard error](https://en.wikipedia.org/wiki/Standard_error) (SE) not just for the mean but for *any* sample statistic. 
 
 Why does that matter, you ask?   After all, the previous module  covered confidence intervals in some detail, which are explicitly defined  in terms of the SE, and in that case we used a formula to estimate the SE:  $\frac{s}{\sqrt{n}}$. Why not just keep using that? The answer is that we can, and will, but  there are a number of other sample statistics, such as the median, for which there is no theoretically-derived formula to estimate the SE.  Furthermore, the formula for SE assumes the sample is normally distributed.  If it is not then the formula will not do a good job of estimating the standard deviation of the sampling distribution.  To obtain the SE in these situations requires a different approach. 
 
@@ -120,27 +122,14 @@ The collection of these sample statistics, called the "bootstrap distribution," 
 Let's illustrate the method using the flight delays example we analyzed from the previous module.  The question we addressed there was whether on‐time performance for RegionEx was worse than for MDA, as measured by `delay`. One of the issues in the case was to select the appropriate metric for comparison.  The mean was problematic because of outliers in RegionEx delays, apparent in the density plot:
 
 ```{r include =F}
-d <- read_csv("data/flight_delays.csv")
-d <- d[1:360,] %>% 
-  mutate(delay = as.numeric(`Arrival delay in minutes`),
-         delay = delay + rnorm(n = 360, sd = .75),
-         `Delay indicator` = as.numeric(`Delay indicator`),
-         `Day of Week` = as.factor(`Day of Week`),
-         `Route Code` = as.factor(`Route Code`),
-         `Route Code` = fct_recode(`Route Code`, "DFW/MSY" = "1", "MSY/DFW" = "2", "MSY/PNS" = "3", "PNS/MSY" = "4"),
-         actual_arrival = parse_time(`Actual arrival time`),
-         scheduled_flight_length =`Scheduled arrival time` - `Scheduled departure time`,
-         actual_flight_length = actual_arrival - `Scheduled departure time`,
-         scheduled_flight_length = as.numeric(scheduled_flight_length)/60,
-         actual_flight_length = as.numeric(actual_flight_length)/60)
-d <- d %>% filter(!is.na(delay))
-# glimpse(d)
+d <- read_csv("data/flight_delay_clean.csv")
+
 
 ```
 
 ```{r x1, exercise = T}
 # Plot delay by airline
-ggplot(d, aes(delay, col = Airline))+
+ggplot(d, aes(delay, col = airline))+
   geom_density() +
   theme_minimal()+
   labs(title = "Arrival delay in minutes by airline")
@@ -151,7 +140,7 @@ It turned out, curiously, that RegionEx had higher average delays but lower medi
 ```{r x2, exercise = T}
 # Calculate summary statistics
 d %>% 
-  group_by(Airline) %>% 
+  group_by(airline) %>% 
   summarize(n = n(),
             mean = mean(delay, na.rm = T) %>%  round(2),
             median = median(delay, na.rm = T) %>%  round())
@@ -181,8 +170,8 @@ boot_distribution <- NULL
 sims <- 1000
 
 # Subset data
-regionex <- filter(d, Airline == "RegionEx")
-mda <- filter(d, Airline == "MDA")
+regionex <- filter(d, airline == "RegionEx")
+mda <- filter(d, airline == "MDA")
 
 # Set up the for loop
 set.seed(123)
@@ -204,8 +193,8 @@ boot_distribution <- NULL
 sims <- 1000
 
 # Subset data
-regionex <- filter(d, Airline == "RegionEx")
-mda <- filter(d, Airline == "MDA")
+regionex <- filter(d, airline == "RegionEx")
+mda <- filter(d, airline == "MDA")
 
 # Calculate the difference in median delays for each iteration
 set.seed(123)
@@ -236,8 +225,8 @@ boot_distribution <- NULL
 
 sims <- 1000
 
-regionex <- filter(d, Airline == "RegionEx")
-mda <- filter(d, Airline == "MDA")
+regionex <- filter(d, airline == "RegionEx")
+mda <- filter(d, airline == "MDA")
 
 set.seed(123)
 for(i in 1:sims){
@@ -358,7 +347,7 @@ We have seen how to use the bootstrap to calculate the SE for a sample median.  
 ```{r x11, exercise = T}
 # Calculate summary statistics
 d %>% 
-  group_by(Airline) %>% 
+  group_by(airline) %>% 
   summarize(n = n(),
             mean = mean(delay),
             se = sd(delay)/sqrt(n),
@@ -378,7 +367,7 @@ boot_distribution <- NULL
 sims <- 1000
 
 # Subset data
-regionex <- filter(d, Airline == "RegionEx")
+regionex <- filter(d, airline == "RegionEx")
 
 # Calculate the RegionEx mean for each iteration
 set.seed(123)
@@ -399,7 +388,7 @@ boot_distribution <- NULL
 sims <- 1000
 
 # Subset data
-mda <- filter(d, Airline == "MDA")
+mda <- filter(d, airline == "MDA")
 
 # Calculate the MDA mean for each iteration
 set.seed(123)
@@ -416,16 +405,26 @@ The resulting CIs are very close to those we estimated analytically, using the f
 
 ## Other Non-parametric Methods
 
-The book describes two additional non-parametric tests for comparing samples:  the Wilcoxon rank sum test and the Kruskal-Wallis test.  These are very useful tests (since data is usually not normally distributed in the real world), that, unfortunately, are not as powerful---not as sensitive to sample differences--- as parametric tests.  This is generally true of non-parametric methods: they have fewer assumptions but are less powerful than their parametric counterparts.
+Other non-parametric tests for comparing samples include the Mann-Whitney test, the Kolmogorov-Smirnoff (KS) test and the Kruskal-Wallis test.  These are very useful tests (since data is usually not normally distributed in the real world), that, unfortunately, are not as powerful---not as sensitive to sample differences--- as parametric tests.  This is generally true of non-parametric methods: they have fewer assumptions but are less powerful than their parametric counterparts.
 
-### Wilcoxon test
+### Mann-Whitney and KS tests
 
-The Wilcoxon test is analogous to the t-test.  The null hypothesis, when comparing two samples, is that they both come from the same population.  
+The Mann-Whitney test is analogous to the t-test.  The null hypothesis, when comparing two samples, is that they both come from the same population.  
 
 ```{r ex14, exercise = T}
 # The syntax is the same as the t-test
-wilcox.test(x = filter(d, Airline=="RegionEx")$delay,
-            y = filter(d, Airline=="MDA")$delay, 
+wilcox.test(x = filter(d, airline=="RegionEx")$delay,
+            y = filter(d, airline=="MDA")$delay, 
+            alternative = "two.sided")
+```
+
+
+The KS test is similar.  
+
+```{r ex14, exercise = T}
+# The syntax is the same as the t-test
+ks.test(x = filter(d, airline=="RegionEx")$delay,
+            y = filter(d, airline=="MDA")$delay, 
             alternative = "two.sided")
 ```
 
@@ -436,8 +435,55 @@ The Kruskal-Wallis test is analogous to ANOVA, in that it can compare multiple s
 
 ```{r ex15, exercise = T}
 kruskal.test(x = d$delay,
-             g = d$Airline)
+             g = d$airline)
 
 ```
 
 These tests produce nearly identical results, though the test statistics are different.  The significant p-values indicate that the null hypothesis should be rejected:  these delays do not come from the same population.  
+
+## Linear Regression
+
+In the introduction to this tutorial, we noted that the bootstrap is a general method for estimating standard errors for any test statistic. Could it be used with regression? Yes. The bootstrap offers a non-parametric alternative for calculating standard errors and confidence intervals for regression coefficients. 
+
+Here are the steps:
+
+1. Initialize a vector for storing the regression coefficient of interest. 
+2. Set the seed for reproducibility.
+3. Set up a loop.
+4. Within each loop take a bootstrap sample, fit the regression, and extract and store the desired regression coefficient.
+5.  Compute the confidence interval and assess statistical significance. Vote
+
+First, let's fit a simple linear regression model of delay using airline as a predictor.
+
+```{r}
+lm(delay ~ airline, data = d) %>% 
+  summary
+```
+Notice here that the coefficient for `airline`, which represents the average delay difference between RegionEx and MDA, is not quite statistically significant.  This is surprising, especially considering the results from the other tests. The confidence interval for the coefficient will be: 
+
+```{r}
+4.762 - 1.96 * 2.599 # Lower bound
+4.762 + 1.96 * 2.599 # Upper bound
+```
+
+The confidence interval tells us that, according to this analysis, the slope of the regression line is not statistically distinguishable from  0. However, this estimate may be questionable due to the very large standard deviation of delay in RegionEx caused by outliers.
+
+Let's double check with the bootstrap.
+
+```{r}
+n <- 1000
+
+coefs <- NA
+
+set.seed(123)
+
+for(i in 1:n){
+  boot_index <- sample(1:nrow(d), nrow(d), replace = T) # random index of rows
+  boot_sample <- d[boot_index, ] # create bootstrap sample from the row index
+  model <- lm(delay ~ airline, data = boot_sample) # fit model with bootstrap sample
+  coefs[i] <- coef(model)[2] # extract model coefficient
+}
+
+quantile(coefs, probs = c(.025, .975))
+```
+
