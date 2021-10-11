@@ -411,7 +411,7 @@ Other non-parametric tests for comparing samples include the Mann-Whitney test, 
 
 The Mann-Whitney test is analogous to the t-test.  The null hypothesis, when comparing two samples, is that they both come from the same population.  
 
-```{r ex14, exercise = T}
+```{r ex14_5, exercise = T}
 # The syntax is the same as the t-test
 wilcox.test(x = filter(d, airline=="RegionEx")$delay,
             y = filter(d, airline=="MDA")$delay, 
