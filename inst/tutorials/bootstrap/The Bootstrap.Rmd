@@ -18,6 +18,12 @@ df <- data.frame(Day = 1:30,
 
 A <- df$A
 
+
+d <- read_csv("data/flight_delay_clean.csv")
+
+
+
+
 ```
 
 
@@ -121,11 +127,7 @@ The collection of these sample statistics, called the "bootstrap distribution," 
 
 Let's illustrate the method using the flight delays example we analyzed from the previous module.  The question we addressed there was whether on‐time performance for RegionEx was worse than for MDA, as measured by `delay`. One of the issues in the case was to select the appropriate metric for comparison.  The mean was problematic because of outliers in RegionEx delays, apparent in the density plot:
 
-```{r include =F}
-d <- read_csv("data/flight_delay_clean.csv")
 
-
-```
 
 ```{r x1, exercise = T}
 # Plot delay by airline
