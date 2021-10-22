@@ -21,7 +21,35 @@ A <- df$A
 
 d <- read_csv("data/flight_delay_clean.csv")
 
+# Initialize empty vector
+boot_distribution <- NULL
+# Define number of simulations
+sims <- 1000
 
+# Subset data
+regionex <- filter(d, airline == "RegionEx")
+mda <- filter(d, airline == "MDA")
+
+# Calculate the difference in median delays for each iteration
+set.seed(123)
+
+for(i in 1:sims){
+  
+  boot_regionex <- sample(regionex$delay, replace = T)
+  boot_mda <- sample(mda$delay, replace = T)
+  
+  # These are both temporary bootstrap samples that will be overwritten/redefined
+  # for every loop.
+  
+  boot_distribution[i] <- median(boot_regionex) - median(boot_mda)
+  
+  # We index the vector, boot_distribution, with [i] in order to accumulate
+  # a new simulated difference for each loop iteration.
+  
+}
+
+# Inspect the bootstrap distribution of difference in median delay
+head(boot_distribution, 20)
 
 
 ```
