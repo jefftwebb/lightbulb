@@ -16,7 +16,7 @@ df <- data.frame(Day = 1:30,
                  A = round(rnorm(30, mean = 300, sd = 120), 2),
                  B = c(98.83, rep(NA, 29)))
 
-A <- df$A
+A <-  df$A
 
 
 d <- read_csv("data/flight_delay_clean.csv")
