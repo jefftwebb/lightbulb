@@ -67,6 +67,28 @@ caret_knn <- train(sales ~ price+ display + coupon,
 poly <- lm(sales ~ price + I(price^2) + coupon + display,
    data = newsales)
 
+# Rescaling example
+
+set.seed(123)
+
+# Create coefficients
+a <- 1
+b1 <- 2
+b2 <- 10
+
+# Create predictors and error
+x1 <- runif(n = 1000, min = 1, max = 1000) # range 1:1000
+x2 <- rbinom(n = 1000, size = 1, prob = .5) # range 0:1
+error <- rnorm(n = 1000, mean = 0, sd = 10)
+
+# Create outcome
+y <- a + b1 * x1 + b2 * x2 + error
+
+# Save as a data frame
+rescale_data <- data.frame(x1 = x1,  
+                           x2 = x2,
+                           y = y)
+
 ```
 
 
@@ -84,7 +106,7 @@ ggplot(sales, aes(price, sales)) +
   labs(title = "Sales ~ price")
 ```
 
-The plot suggests there is a negative relationship between sales and price.  We tested the slope of that line using simple linear regression and discovered that it is statistically significant. However, as we noted, the linear fit was not great. Not only are there bumps in sales in certain price regions that are not well-explained by price alone, but the general relationship between price and sales is more curved than linear.  We can picture this non-linearity using a LOESS (or local regression) curve:
+The plot suggests there is a negative relationship between sales and price.  We tested the slope of that line using simple linear regression and discovered that it *is* statistically significant. However, as we noted, the linear fit was not great. Not only are there bumps in sales in certain price regions that are not well-explained by price alone, but the general relationship between price and sales is more curved than linear.  We can picture this non-linearity using a LOESS (or local regression) curve:
 
 ```{r x2, exercise = T}
 # Visualize sales ~ price
@@ -320,30 +342,6 @@ Again, why center and scale?  When input variables are on substantially differen
 Here is a made up example to illustrate the point:
 
 
-```{r include = F}
-# Rescaling example
-
-set.seed(123)
-
-# Create coefficients
-a <- 1
-b1 <- 2
-b2 <- 10
-
-# Create predictors and error
-x1 <- runif(n = 1000, min = 1, max = 1000) # range 1:1000
-x2 <- rbinom(n = 1000, size = 1, prob = .5) # range 0:1
-error <- rnorm(n = 1000, mean = 0, sd = 10)
-
-# Create outcome
-y <- a + b1 * x1 + b2 * x2 + error
-
-# Save as a data frame
-rescale_data <- data.frame(x1 = x1,  
-                           x2 = x2,
-                           y = y)
-
-```
 
 ```{r x14, exercise=TRUE}
 # Look at rescale example data
