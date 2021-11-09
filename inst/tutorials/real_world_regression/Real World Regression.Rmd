@@ -32,9 +32,21 @@ caret_lm <- train(x = numeric_frame,
                   method = "lm",
                   preProcess = c("medianImpute"))
 
+set.seed(123)
+imputed <- missForest(xmis = select(c, -Sales))$ximp
 
+
+library(glmnet)
+library(glmnetUtils)
+set.seed(123)
+caret_glmnet <- train(Sales ~ .^2,
+                  method = "glmnet",
+                  preProcess = c("center", "scale"),
+                  data = cbind(Sales = c$Sales, imputed))
 
 ```
+
+
 
 
 ## Introduction
@@ -354,11 +366,7 @@ Notes on usage:
 
 Here is an example of the syntax. 
 
-```{r include = F}
-set.seed(123)
-imputed <- missForest(xmis = select(c, -Sales))$ximp
 
-```
     
 ```{r x10-1, exercise = T}
 # Remember to remove the target and set the seed
@@ -461,18 +469,6 @@ summary(caret_overfit)
 We now see rather large differences between multiple $R^2$, adjusted $R^2$ and the cross-validation estimate of  $R^2$.  Basically, this model is overfitting.  It is too complicated and will not generalize well to new data. 
 
 A regularized model--- either Lasso or ridge--- would be a good choice to simplify the model, both for interpretation and for improving predictive performance. A good implementation of regularized linear models is in the `glmnet`  package. Specifically, `glmnet`  will fit a mixture of Lasso and ridge, with the mixture being controlled by `alpha`,  a mixing parameter, in addition to the penalty parameter, `lambda`.   Switching between a linear model and a regularized model is trivial in `caret`,  though we do have to take care to center and scale the inputs when using `glmnet` (standardization is typically required when using machine learning algorithms).  
-
-
-```{r include = F}
-library(glmnet)
-library(glmnetUtils)
-set.seed(123)
-caret_glmnet <- train(Sales ~ .^2,
-                  method = "glmnet",
-                  preProcess = c("center", "scale"),
-                  data = cbind(Sales = c$Sales, imputed))
-
-```
 
 
 ```{r x11-5, exercise = T}
