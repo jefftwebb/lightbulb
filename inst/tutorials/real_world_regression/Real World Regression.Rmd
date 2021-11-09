@@ -21,6 +21,10 @@ set.seed(123)
 c <- prodNA(Carseats, .1)
 c$Sales <- Carseats$Sales
 carseat_model <- lm(Sales ~ ., data = c)
+
+numeric_frame <- dummyVars(Sales ~ ., data = c, fullRank = T) %>% 
+  predict(newdata = c) 
+
 ```
 
 
@@ -163,13 +167,6 @@ model.matrix(carseat_model) %>%
 Notice that all of these columns are numeric. The number of dummy variables for a given factor variable is, appropriately, one less than the number of factor levels.  For example, there are just two columns to represent three `ShelveLoc` levels:  Bad, Medium, and Good.  We could actually go ahead and fit the model using the model matrix, minus the `intercept` column, and get precisely the same model as we would when fitting the model with the original dataset.  However, I would recommend using `caret` for dummy coding, which provides a function to create dummy variables, `dummyVars()`, that offers more convenience (better handling of NAs) than `model.matrix()`.  It is used as follows:
 
 
-```{r include= F}
-
-numeric_frame <- dummyVars(Sales ~ ., data = c, fullRank = T) %>% 
-  predict(newdata = c) 
-
-
-```
 
 ```{r x4-5, exercise = T}
 # Create dummy variables
@@ -296,7 +293,7 @@ This result tells us that all the columns in this dataset have enough variance t
 
 ### Remove correlated predictors
 
-Highly correlated predictors add noise to a regression model without adding information, and can inflate standard errors, which is a problem if your goal is inference.  This is called multicollinearity.  The solution is to remove one of the correlated variables.  Check out the `caret` documentation, [Chapter 3.3](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictors), for information on how to do this using `caret` functions.  I will not go through these procedures here, since we will shortly be discussing regularized models---Lasso and ridge, as implemented in the `glmnet` package---and one of the virtues of these models is to remove non-informative predictors, including correlated predictors.   Also, our objective here is to demonstrate methods that will be applicable to the final project, which is a prediction problem.  Multicollinearity is largely a problem for inference not prediction.
+Highly correlated predictors add noise to a regression model without adding information, and can inflate standard errors, which is a problem if your goal is inference.  This is called multicollinearity.  The solution is to remove one of the correlated variables.  Check out the `caret` documentation, [Chapter 3.3](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictors), for information on how to do this using `caret` functions.  I will not go through these procedures here, since we will shortly be discussing regularized models---Lasso and ridge, as implemented in the `glmnet` package---and one of the virtues of these models is to remove non-informative predictors, including correlated predictors.   Also, our objective here is to demonstrate methods that will be applicable to the final project, which is a prediction problem.  Multicollinearity is a problem for inference not prediction.
 
 ### Imputation with medians
 
