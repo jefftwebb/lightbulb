@@ -25,6 +25,15 @@ carseat_model <- lm(Sales ~ ., data = c)
 numeric_frame <- dummyVars(Sales ~ ., data = c, fullRank = T) %>% 
   predict(newdata = c) 
 
+
+
+caret_lm <- train(x = numeric_frame,
+                  y = c$Sales,
+                  method = "lm",
+                  preProcess = c("medianImpute"))
+
+
+
 ```
 
 
@@ -308,14 +317,7 @@ Now that we have an entirely numeric predictor frame, we can use the `train()` f
 Here is the code for fitting a linear model in `caret` and imputing missing observations with medians:
 
 
-```{r include=F}
 
-caret_lm <- train(x = numeric_frame,
-                  y = c$Sales,
-                  method = "lm",
-                  preProcess = c("medianImpute"))
-
-```
 
 ```{r x9, exercise = T, warnings = F, message=F}
 # Fit linear model
