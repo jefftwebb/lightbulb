@@ -48,7 +48,6 @@ m <- read_csv("data/megatelco.csv") %>%
          leave = factor(leave, levels = c("STAY", "LEAVE")),
          college = factor(ifelse(college == "one", "yes", "no")),
          overage = overage *2) %>% 
-  rename(overage_charge = overage) %>% 
   filter(income > 0,
        house > 0,
        handset_price < 1000,
@@ -106,7 +105,13 @@ caret_knn <- train(y = m$leave,
                    preProcess = c("center","scale"),
                    trControl = trainControl(method = "cv", number = 5))
 
+baseline <- predict(caret_glm,  
+                    type = "prob")$LEAVE
 
+policy_change <- predict(caret_glm,
+                         type = "prob",
+                         newdata = dummy_frame %>% 
+                           mutate(overage = overage - 300))$LEAVE
 
 ```
 
@@ -142,7 +147,7 @@ There is a clear business problem: customer retention in the company's wireless 
 ### The Data
 
 ```{r}
-data.frame(Variable = c("College", "Income",  "Overage_charge", "Leftover", "House", "Handset_price", "Over_15mins_calls_per_month", "Average_call_duration", "Reported_satisfaction", "Reported_usage_level", "Considering_change_of_plan", "Leave","ID"),
+data.frame(Variable = c("College", "Income",  "Overage", "Leftover", "House", "Handset_price", "Over_15mins_calls_per_month", "Average_call_duration", "Reported_satisfaction", "Reported_usage_level", "Considering_change_of_plan", "Leave","ID"),
             Explanation = c("Is the customer college educated?"," Annual income","Overcharges per year","Average % leftover minutes per month","Estimated value of dwelling (from the census tract)", "Cost of phone", "Average number of long calls (15 mins or over) per month", "Average duration of a call", "Reported level of satisfaction", "Self-reported usage level", "Was customer considering changing his/her plan?","Class variable: whether customer left or stayed", "Numeric customer ID")) %>%
   kable
 ```
@@ -402,7 +407,10 @@ predict(glm_model, type = "response", newdata = pred_frame)[2] -
 
 ```
 
-These are important techniques to learn.  When using a model for data exploration, to reason about relationships in the data, you will, admittedly, most likely opt to use model coefficients or ORs. These offer the quickest way to learn about data.  But translating effects into probabilities is a crucial technique for communication, for helping decision-makers understand a result and take appropriate action.
+
+
+
+This is an important technique to learn.  When using a model for data exploration, to reason about relationships in the data, you will, admittedly, most likely opt to use model coefficients or ORs. These offer the quickest way to learn about data.  But translating effects into probabilities is a crucial technique for communication, for helping decision-makers understand a result and take appropriate action.
 
 
 ### Uncertainty
@@ -479,7 +487,7 @@ In general, lower residual deviance means better model fit.  However, keep in mi
 
 ### AIC
 
-AIC stands for "Akaike information criterion" and is a useful measure of model fit that penalizes for model complexity.  At a certain point, the addition of another predictor to an already-complex model, even if the addition decreases residual deviance, will cause AIC to go up.  AIC is thus an error metric, like adjusted $R^2$ in a linear model, that attempts to identify when a model is beginning to overfit and will not generalize well to new data.
+AIC stands for "Akaike Information Criterion" and is a useful measure of model fit that penalizes for model complexity.  At a certain point, the addition of another predictor to an already-complex model, even if the addition decreases residual deviance, will cause AIC to go up.  AIC is thus an error metric, like adjusted $R^2$ in a linear model, that attempts to identify when a model is beginning to overfit and will not generalize well to new data.
 
 Like residual deviance, AIC can only be used to compare nested models.  Lower AIC indicates a better model fit.  
 
@@ -711,7 +719,7 @@ nzv(dummy_frame, names = T)
 
 dummy_frame %>% 
   data.frame %>% 
-  select(overage_charge, reported_usage_level.avg) %>% 
+  select(overage, reported_usage_level.avg) %>% 
   head(20)
 
 ```
@@ -897,9 +905,9 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- What do we do with these results? How do we translate this change in the probability of churn into an estimate of profit?  Charging less in overage fees will, after all, reduce revenue at the same time that it prevents attrition. Which one of these---the *cost* of reducing overage fees or the *benefit* of preserving revenue from subscription fees---is larger?  Could the company lose money with such a policy change? Figuring out what to do with a classification model---how to use logistic regression modeling results to make business recommendations---is the subject of the next module. -->
 
-## From Predictive to Prescriptive Analytics
+<!-- ## From Predictive to Prescriptive Analytics -->
 
-What do we do with these results? How do we translate model coefficients into information useful to decision-makers? Figuring out what to do with a classification model---how to use logistic regression modeling results to make business recommendations---is the subject of the next module.
+<!-- What do we do with these results? How do we translate model coefficients into information useful to decision-makers? Figuring out what to do with a classification model---how to use logistic regression modeling results to make business recommendations---is the subject of the next module. -->
 
 
 <!-- The easiest way to do this is to work with a simplified model, using the largest effect size predictors from the glmnet model.  We will refit the model using `method = glm` and just four predictors: `income`, `overage`, `house`, `handset_price`.  -->
@@ -954,5 +962,81 @@ What do we do with these results? How do we translate model coefficients into in
 
 <!-- The probability of churn would go down by .175.  This means that out of 100 customers about 18 fewer would churn.  It would be relatively straightforward to compute a return on investment or ROI for a proposed change in overage policy, with the benefits defined by the subscription fees paid by the 18 retained customers minus the costs of lost overage fees for the entire customer population.  Figuring out what to do with a classification model---how to use logistic regression modeling results to make business recommendations---is the subject of the next module. -->
 
+## More probabilities
+
+The method described above for calculating probabilities works well for a *simple* logistic regression model, where there is just one input to manipulate.  But it works less well for a more complicated, multivariable model, since in that case the analyst needs to choose the levels of *all* the predictors in the model at which to evaluate the probability of the outcome, not just the predictor of interest.  The resulting probabilities are then dependent on the chosen levels, reducing the generality of the results you can report. By contrast, the nice thing about linear regression coefficients is that they represent effects that, while dependent on the other predictors in the model, are nevertheless *independent* of changes in, or particular levels of, those predictors.  Fortunately there is a more general method for making *average predictive comparisons on the probability scale* for multivariable logistic regression models.  This method consists in using the model to calculate the predictive difference in probability between two chosen values of the predictor of interest, while holding all the other inputs constant. Here are the steps:
+
+1. Fit a logistic regression model:  $\operatorname{Pr}(y_i = 1 | X_i) = \operatorname{logit}^{-1}(X_i \beta)$. The probability model of $y$ is based on the matrix of predictors, $X$, and the parameters, $\beta$.
+2. Define the predictor of interest, $v$, a column vector, in contrast to the matrix of other predictors, $U$.  Thus, $X = (v, U)$. 
+3. Define the two values or levels of $v$ for calculating a predictive difference.  Generally, as mentioned above, these values should have business interest and involve the majority of observations.  We'll call them $v = v^{low}$ and $v = v^{high}$.
+4. The expected, or average, predictive difference in probabilities between the two cases, differing only in $v$, is $\mathbb{E}(\operatorname{Pr}(y_i = 1| v^{high}, U_i, \beta))$ - $\mathbb{E}(\operatorname{Pr}(y_i=1 | v^{high}, U_i, \beta))$, where $\mathbb{E}$ stands for expection, in this case the expected probability that $y_i = 1$ given $v^{high}, U_i$, and $\beta$. Averaging over all pairs of transitions from $(v^{low}, U)$ to $(v^{high}, U)$ produces the expected difference in probability due uniquely to changes in $v$ with $U$ held constant.
+
+How would this work exactly in the MegaTelCo example?  First, suppose we would like to understand the effect of `overage` on churn using a multivariable model. Here is the model:
+
+```{r x11_35, exercise = T}
+summary(caret_glm)
+
+```
+
+We need to decide on the levels of `overage` to compare.  Let's treat existing overage fees as a baseline case against which to compare a change in overage policy.  The baseline case would correspond to $v^{high}$.  For purposes of illustration, and acknowledging that there are obviously different possibilities here, let's define the policy change with a fixed amount, and propose that the company *increase* the allowed plan  minutes in order to *reduce* overage fees by \$300 for every customer. (Why \$300?  This number is plucked from thin air, for illustration.  In a real application, effort should be put into optimizing it.)  The reduced fees would correspond to $v^{low}$. 
+
+Here are the steps using R code.  Throughout we will be using the test set to evaluate the model.
+
+**Step 1**
+
+Calculate `p(LEAVE)` for each customer in the test set with no policy change. This is the baseline case.  Remember that because we used the `train()` function to fit the model we need to include the `type = "prob"` argument when using `predict()`.  This produces a data frame with two columns of predicted probabilities on the test set:  one for `LEAVE` and one for `STAY`.  We need to pick out the `LEAVE` column by indexing it appropriately.
+
+```{r x11_4, exercise = T}
+# Calculate churn probabilities without policy change
+baseline <- predict(caret_glm,  
+                    type = "prob")$LEAVE
+
+head(baseline)
+```
+
+We then *average* these individual probabilities of churn with no policy change to obtain a summary. The model predicts that with existing overage fees 49.1% of  customers will churn, on average.
+
+```{r x11_5, exercise = T}
+# Average churn probability without policy change
+mean(baseline)
+
+```
+
+<!-- The next step is to use the model to calculate the churn probability after changing the overage policy, for comparison with this baseline probability. The objective here, remember, is to understand, and better communicate, the effect of a policy change in dollar terms. -->
+
+**Step 2**
+
+Calculate `p(LEAVE)` for each customer in the test set after the policy change. The procedure will be to toggle `overage` to the new level and use the model to calculate a new probability of churn. Crucially, everything about the data and the model remains exactly the same except the change in `overage`. This allows us to examine the effect on the predicted probability of churn resulting uniquely from one change:  the proposed reduction in overage fees.  There are different ways of accomplishing this, obviously.  The example below changes `overage` by overwriting the old value with the new one on the fly using `mutate()` within the `predict()` function. The new value, remember, is set by policy to be \$300 lower than the old value.  Customers who were already at 0 will receive a credit of \$300, which will be represented in the data as a negative overage charge. 
+
+```{r x11_6, exercise = T}
+# Calculate new probabilities with the new data (same model)
+policy_change <- predict(caret_glm,
+                         type = "prob",
+                         newdata = dummy_frame %>% 
+                           mutate(overage = overage - 300))$LEAVE
+
+head(policy_change)  
+
+```
+
+Reducing `overage` will reduce the probability of churn in the test set. Individual probabilities seem to have gone down.  The average probability has gone down substantially.
+
+```{r x11_7, exercise = T}
+mean(policy_change)
+
+```
+
+**Step 3**
+
+Calculate the *change* in `p(LEAVE)` for customers in the test set associated with the new policy. Remember that steps 1 and 2 above have created two vectors of predicted churn probabilities---one for each customer in the test set---so we can examine the *distribution* of differences:
+
+```{r x11_8, exercise = T}
+# Subtract probabilities
+(policy_change - baseline) %>%
+  summary
+
+```
+
+This result suggests that many customers will be less likely to churn after the policy change, with an average reduction of 15.5% in the probability of leaving. What does this mean?  Out of 100 customers we would expect roughly 16 fewer customers to churn under the new policy. This gives us a very concrete way of conveying the effect size of the policy change to decision-makers.  
 
 
