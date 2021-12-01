@@ -494,8 +494,8 @@ coef(caret_glmnet$finalModel, caret_glmnet$finalModel$tuneValue$lambda)
 ``` 
  
 - `coef()` is a function that pulls coefficients out of the model object.
-- `object\$finalModel` extracts the model that `caret`, after having conducted a grid search of optimal `alpha` hyperparameter settings, identifies as the one that will generalize best to new data.
-- `object\$finalModel\$tuneValue\$lambda` extracts from the among the models with the best alpha the one with the optimal `lambda` hyperparameter.
+- `object$finalModel` extracts the model that `caret`, after having conducted a grid search of optimal `alpha` hyperparameter settings, identifies as the one that will generalize best to new data.
+- `object$finalModel$tuneValue$lambda` extracts from the among the models with the best alpha the one with the optimal `lambda` hyperparameter.
 
 The  coefficients that have been removed are represented with a period.  The result is a much simpler model that will tend to generalize better than a complicated model to new data.  In models without interactions, regularization will also often produce more interpretable models that are easier to explain and more actionable than complicated models. Interpretation is perhaps less clear when the algorithm has removed coefficients in models with interactions.
 
