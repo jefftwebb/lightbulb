@@ -66,7 +66,7 @@ Are changes in price associated with changes in sales?
 
 Let's visualize the relationship.  Visualization is always a good idea before fitting the model!  By convention we put the response (or target or outcome) variable on the y-axis and the predictor (or explanatory) variable on the x-axis. `ggplot` very usefully allows us to add a summary least squares line to the data with one line of code using `geom_smooth()`. The default summary line in `geom_smooth()` is a local regression called [LOESS](https://en.wikipedia.org/wiki/Local_regression); to get a least squares line we need to specify `method = "lm"`. `ggplot` also adds standard error bands by default, which can be turned off with `se = F`.  These bands, and standard errors in general, indicate estimation uncertainty, telling us how much we might expect the regression line to vary under repeated sampling.
 
-```{r exercise = TRUE}
+```{r second_chunk, exercise = TRUE}
 # Visualize sales ~ price
 ggplot(sales, aes(price, sales)) +
   geom_point() +
@@ -77,7 +77,7 @@ ggplot(sales, aes(price, sales)) +
 
 There is, clearly, quite a bit  non-linearity in this relationship,  with  bumps in sales  at certain prices and one large outlier (perhaps a holiday). The plot makes it clear that there is likely a lot more to  sales than just price. Nevertheless, the plot suggests there is a *slight* negative relationship between sales and price in this plot, such that increases in price---as we would expect---are associated with decreases in sales.   If we remove the outlier for purposes of visualization the relationship becomes clearer:
 
-```{r second_chunk, exercise = TRUE}
+```{r third_chunk, exercise = TRUE}
 # Visualize sales ~ price without outlier
 sales %>% 
   filter(sales < 1000) %>% 
