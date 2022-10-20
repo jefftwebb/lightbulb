@@ -8,7 +8,7 @@ description: >
 
 ```{r setup, include=FALSE}
 library(learnr)
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, knitr.duplicate.label = "allow")
 library(tidyverse)
 library(ISLR)
 library(janitor)
