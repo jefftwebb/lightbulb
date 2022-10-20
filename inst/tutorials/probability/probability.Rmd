@@ -672,14 +672,14 @@ Note that the `size` argument in `rbinom()` indicates the number of trials (the 
 
 Here is code to draw 10 observations from $Binomial(10, .5)$, which represents the number of heads (or tails) in 10 flips of a fair coin:
 
-```{r random_bin1, exercise = T}
+```{r random_bin1, exercise = TRUE}
 # Draw from Binomial(10, .5)
 rbinom(n = 10, size = 10, prob = .5)
 ```
 
 These are random draws, so every time this code is run the numbers will change.  Try it. In order to take random draws that do not change---and to use numbers that are therefore suitable for reproducible data analysis---we must set a random seed using the `set.seed()` function before running any random process.  The argument to `set.seed()` is a number.  It doesn't matter which number. As long as the person trying to replicate your analysis has the number, then your work will be reproducible.  In this sense seed functions like a password.  As a general rule, **always set the seed.**
 
-```{r random_bin2, exercise = T}
+```{r random_bin2, exercise = TRUE}
 # Draw from Binomial(10, .5)
 set.seed(123)
 rbinom(n = 10, size = 10, prob = .5)
@@ -731,7 +731,7 @@ The [categorical distribution](https://en.wikipedia.org/wiki/Categorical_distrib
 
 As an introduction, consider that these two code snippets are exactly equivalent (though the actual numbers drawn will of course vary randomly):
 
-```{r random3, exercise =T}
+```{r random3, exercise = TRUE}
 # Draw from Binomial(1, .5) with rbinom()
 rbinom(n = 10, size = 1, prob = .5)
 
@@ -748,7 +748,7 @@ In contrast to `rbinom()`, the `size` argument in `sample()` represents the *num
 
 Here is code to take 20 random draws from four categories---A, B, C, D---with probability of .1, .2, .3, .4, respectively. 
 
-```{r random4, exercise=T}
+```{r random4, exercise= TRUE}
 # Sample from 4 categories with defined probability
 set.seed(123)
 sample(c("A", "B", "C", "D"), 
@@ -760,7 +760,7 @@ sample(c("A", "B", "C", "D"),
 
 With `size = 20` the proportions should be close to what we defined (but would, of course, become more exact with larger n).
 
-```{r random5, exercise=T}
+```{r random5, exercise= TRUE}
 # Summarize proportions in random sample of 50
 set.seed(123)
 sample(c("A", "B", "C", "D"), 
@@ -771,7 +771,7 @@ sample(c("A", "B", "C", "D"),
   prop.table
 ```
 
-```{r random5000, exercise=T}
+```{r random5000, exercise= TRUE}
 # Summarize proportions in random sample of 5000
 set.seed(123)
 sample(c("A", "B", "C", "D"), 
@@ -809,7 +809,7 @@ In R we use the `rnorm()` function to simulate random variates from the normal d
 
 Here is code to draw 10 observations from $N(0,1)$:
 
-```{r norml1, exercise = T}
+```{r norml1, exercise = TRUE}
 # Simulate from N(0,1)
 set.seed(123)
 rnorm(n = 10, mean = 0, sd = 1)
@@ -921,7 +921,7 @@ we use the `runif()` function to simulate random variates from the uniform distr
 
 Here is code to draw 10 observations from $U(0,1)$:
 
-```{r unif, exercise = T}
+```{r unif, exercise = TRUE}
 # Simulate from U(0,1)
 set.seed(123)
 runif(n = 10, min = 0, max = 1)
@@ -937,7 +937,7 @@ runif(n = 10, min = 0, max = 1)
 
 <!-- For example, `dnorm()` calculates the height of the density curve at a particular point (actually, an interval), as defined by the normal density function:  $f(x|\mu,\sigma) = \frac{1}{\sigma\sqrt{2\pi}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$.  The density around -1 in $N(0,1)$ is: -->
 
-<!-- ```{r echo = T} -->
+<!-- ```{r echo = TRUE} -->
 <!-- dnorm(x = -1, mean = 0, sd = 1) -->
 <!-- ``` -->
 
@@ -953,13 +953,13 @@ runif(n = 10, min = 0, max = 1)
 
 <!-- And the PMF for 1 from $Binomial(1, .5)$ is .5 because with p = .5 half the density will be on 1 and half on 0:  -->
 
-<!-- ```{r echo = T} -->
+<!-- ```{r echo = TRUE} -->
 <!-- dbinom(x = 1, size = 1, prob = .5) -->
 <!-- ``` -->
 
 <!-- What happens if we change the probability argument to .6? -->
 
-<!-- ```{r echo = T} -->
+<!-- ```{r echo = TRUE} -->
 <!-- dbinom(x = 1, size = 1, prob = .6) -->
 
 <!-- ``` -->
@@ -991,7 +991,7 @@ suppressWarnings(print(plt))
 
 Here is the code for doing that probability calculation:
 
-```{r cdf0, exercise = T}
+```{r cdf0, exercise = TRUE}
 # Calculate CDF [neg inf, 0]
 pnorm(q = 0, mean = 0, sd = 1)
 ```
@@ -1012,7 +1012,7 @@ suppressWarnings(print(plt))
 
 We subtract the cumulative probability up to $q = -1$ from the larger cumulative probability up to $q = 1$. Here is the calculation using `pnorm()`.  
 
-```{r calc, exercise = T}
+```{r calc, exercise = TRUE}
 # Calculate CDF [-1, 1]
 pnorm(q = 1, mean = 0, sd = 1) - 
   pnorm(q = -1, mean = 0, sd = 1)
@@ -1020,7 +1020,7 @@ pnorm(q = 1, mean = 0, sd = 1) -
 
 Incidentally, we can *approximate* this exact calculation with simulation using `rnorm()`:
 
-```{r calc_alt, exercise = T}
+```{r calc_alt, exercise = TRUE}
 # Simulate draws from N(0,1)
 set.seed(123)
 sims <- 100000
@@ -1038,14 +1038,14 @@ Notice that in the above code chunk I have defined the number of simulations---`
 
 We can, of course, calculate a CDF for a discrete distribution also, such as $Binomial(1,.5)$. How much of the probability in this distribution is associated with 0 rather than 1?  Another way to put the question:  what is the relative frequency of 0's in the distribution as opposed to 1's?  Or: the probability of heads versus tails?   This should be .5 by definition.
 
-```{r bin_cdf, exercise = T}
+```{r bin_cdf, exercise = TRUE}
 # Calculate CDF for [0, 0]
 pbinom(q = 0, size = 1, prob = .5)
 ```
 
 Here is the simulation:
 
-```{r bin_cdf2, exercise = T}
+```{r bin_cdf2, exercise = TRUE}
 # Calculate CDF for [0, 0]
 rbinom(n = sims, size = 1, prob = .5) %>% 
   sum / sims
@@ -1102,7 +1102,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- $P(X \:\text{or}\: Y) = P(X) + P(Y) - P(X \:\text{and}\: Y)$ = .1 + .2 - .1 x .2 -->
 
-<!-- ```{r sim2, exercise = T} -->
+<!-- ```{r sim2, exercise = TRUE} -->
 <!-- # Calculate p(X or Y) using probability rules -->
 <!-- .1 + .2 - .1 * .2  -->
 <!-- ``` -->
@@ -1118,7 +1118,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- Approximate this result with simulation: -->
 
-<!-- ```{r sim3, exercise = T} -->
+<!-- ```{r sim3, exercise = TRUE} -->
 <!-- # Simulate X and Y -->
 <!-- set.seed(123) -->
 <!-- X <- rbinom(n = sims, size = 1, prob = .1) -->
@@ -1136,7 +1136,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- We get the same result using simulation: -->
 
-<!-- ```{r sim4, exercise = T} -->
+<!-- ```{r sim4, exercise = TRUE} -->
 <!-- # Estimate number of cars with defects -->
 <!-- (sum(X | Y)/100) %>%  round()  -->
 <!-- ``` -->
@@ -1144,7 +1144,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- (c)  In a batch of 1000 cars, what is the probability that the number of returned cars is less than or equal to 250? -->
 
-<!-- ```{r sim5, exercise = T}  -->
+<!-- ```{r sim5, exercise = TRUE}  -->
 <!-- # Estimate p(returned cars) <= 250 from simulation -->
 <!-- set.seed(123) -->
 <!-- sum(rbinom(n = sims, size = 1000, prob = .28) <= 250)/sims -->
@@ -1155,7 +1155,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- (d) In a batch of 1000 cars, what is the probability that the total number of defects, X plus Y, is less than or equal to 300? -->
 
-<!-- ```{r sim6, exercise = T}  -->
+<!-- ```{r sim6, exercise = TRUE}  -->
 
 <!-- (rbinom(n, 1000, .1) + rbinom(n, 1000, .2) <= 300) %>%  -->
 <!--   mean -->
@@ -1313,7 +1313,7 @@ Sanjay estimates that the restaurant would have seating capacity for 50 and that
 
 <!-- ``` -->
 
-```{r frame, exercise =T}
+```{r frame, exercise = TRUE}
 # Set up empty data frame
 n <- 1000
 sim_frame <- data.frame(months = 1:n,
@@ -1351,7 +1351,7 @@ Note that we will simulate labor costs, as defined above, using the uniform dist
 
 <!-- ``` -->
 
-```{r simframe, exercise=T}
+```{r simframe, exercise= TRUE}
 # Fill in data frame with simulated values
 set.seed(123)
 sim <- sim_frame %>% 
@@ -1371,7 +1371,7 @@ head(sim)
 
 **Analyze the simulation.**   The estimate of profit now contains random variation in `meals sold`, `price per meal` and `labor costs`. Sanjay needs an income of \$5000. How does our simulated profit compare to this number? We can plot the distribution, and calculate its expected value and standard deviation, as well as the probability that  Sanjay's income from the restaurant would be less than \$5000---an important consideration.
 
-```{r plot, exercise = T}
+```{r plot, exercise = TRUE}
 # Visualize distribution of profit
 ggplot(sim, aes(profit)) +
   geom_density() +
@@ -1387,7 +1387,7 @@ This is one of the virtues of a simulation study: it provides a sense of the ful
 
 So what is the mean of simulated profit?  Let's examine other summary numbers at the same time.
 
-```{r summary, exercise = T}
+```{r summary, exercise = TRUE}
 # Summarize profit
 sim$profit %>% 
   summary
@@ -1396,7 +1396,7 @@ sim$profit %>%
 
 Average profit is over \$11,000 per month. But the minimum is actually a loss of almost \$9,000! That is quite a bit of volatility. What is the probability that Sanjay's monthly profit would be below his threshold of \$5000?
 
-```{r summary2,exercise = T}
+```{r summary2,exercise = TRUE}
 # Estimate p(profit < 5000)
 (sim$profit < 5000) %>% 
   mean
@@ -1404,7 +1404,7 @@ Average profit is over \$11,000 per month. But the minimum is actually a loss of
 
 What is the probability that Sanjay's monthly profit would be below \$0?
 
-```{r summary3,exercise = T}
+```{r summary3,exercise = TRUE}
 # Estimate p(profit < 0)
 (sim$profit < 0) %>% 
   mean

@@ -78,7 +78,7 @@ Statistical significance---as determined by a small p-value---is strongly influe
 
 This point can be easily illustrated with simulation.  Consider two scenarios: 1. Tiny true difference between two samples but large $n$ results in small p-value.  2. Large true difference between samples but small $n$ results in large p-value ($p>.05$).
 
-```{r ex1, exercise = T}
+```{r ex1, exercise = TRUE}
 ############################################
 ### Scenario 1: Tiny difference, Large n ###
 ############################################
@@ -98,7 +98,7 @@ pt(t_stat, df = sims - 2) * 2 # significant
 
 ```
 
-```{r ex2, exercise = T}
+```{r ex2, exercise = TRUE}
 ##############################################
 ### Scenario 2: Large difference, Small n ####
 ##############################################
@@ -154,7 +154,7 @@ Let's illustrate the method using the flight delays example we analyzed from the
 
 
 
-```{r x1, exercise = T}
+```{r x1, exercise = TRUE}
 # Plot delay by airline
 ggplot(d, aes(delay, col = airline))+
   geom_density() +
@@ -164,7 +164,7 @@ ggplot(d, aes(delay, col = airline))+
 
 It turned out, curiously, that RegionEx had higher average delays but lower median delays.  
 
-```{r x2, exercise = T}
+```{r x2, exercise = TRUE}
 # Calculate summary statistics
 d %>% 
   group_by(airline) %>% 
@@ -181,7 +181,7 @@ The null hypothesis, $H_0$, is that MDA and RegionEx delays come from the same p
 
 1. Initialize an empty vector to store the bootstrap distribution of delay differences. This vector will be a simulated sampling distribution.
 
-```{r x3, exercise = T}
+```{r x3, exercise = TRUE}
 # Initialize empty vector
 boot_distribution <- NULL
 
@@ -189,7 +189,7 @@ boot_distribution <- NULL
 
 2. Define a `for` loop, in each iteration of which we will calculate and store a simulated difference in median delay. These stored delay differences will be the bootstrap distribution. Because we will be using a random process inside the loop we also need to set the seed, and should also define the number of simulations.  We will also divide the data into RegionEx and MDA subsets before the loop since dividing it once is much faster than dividing it within each loop  `i` times.
 
-```{r x4, exercise = T}
+```{r x4, exercise = TRUE}
 # Initialize empty vector
 boot_distribution <- NULL
 
@@ -212,7 +212,7 @@ The number of iterations is somewhat arbitrary.  Generally 1000 iterations shoul
 
 3. Within the loop, for each iteration, take a bootstrap sample of the original subsetted data and calculate the median, storing it in the initialized vector.  How do we take a bootstrap sample?  Simply use the `sample()` function with `replace = TRUE`. (The dplyr functions, `sample_frac()` and `sample_n()` work well too.) 
 
-```{r x5, exercise = T}
+```{r x5, exercise = TRUE}
 # Initialize empty vector
 boot_distribution <- NULL
 
@@ -266,7 +266,7 @@ for(i in 1:sims){
 
 
 
-```{r x5_5, exercise=T}
+```{r x5_5, exercise=TRUE}
 
 # Visualize the bootstrap distribution of medians
   ggplot(data.frame(median = boot_distribution), aes(median)) +
@@ -277,7 +277,7 @@ for(i in 1:sims){
 
 4. Use the `quantile()` function to calculate a 95% CI using the bootstrap distribution.
 
-```{r ex6, exercise = T}
+```{r ex6, exercise = TRUE}
 
 # Define CI by 2.5th and 97.5th percentiles
 quantile(boot_distribution, probs = c(.025, .975))
@@ -287,7 +287,7 @@ quantile(boot_distribution, probs = c(.025, .975))
 This is the so-called "percentile method" for calculating a CI.  Another option, which produces a similar but more robust result, would be to use the standard deviation of the bootstrap distribution---equivalent to the SE---to compute the CI analytically, as follows:
 
 
-```{r x7, exercise = T}
+```{r x7, exercise = TRUE}
 # Calculate lower and upper bounds for 95% CI
 mean(boot_distribution) - 1.96 * sd(boot_distribution)
 mean(boot_distribution) + 1.96 * sd(boot_distribution)
@@ -301,7 +301,7 @@ Back to our question.  The 95% CI for median delay difference does not include 0
 
 Do we need a p-value?  Not really. The CI provides that information and more. But computing a p-value is straightforward using the bootstrap distribution.
 
-```{r x8, exercise = T}
+```{r x8, exercise = TRUE}
 # Calculate p-value using bootstrap distribution
 sum(boot_distribution >= 0) / sims
 ```
@@ -314,7 +314,7 @@ This tells us that median delay difference of 0---our null hypothesis---would es
 
 Sampling with replacement  means that before every draw all of the items in the source dataset are replaced and are therefore available for being drawn again.  Here is an example:
 
-```{r x9, exercise = T}
+```{r x9, exercise = TRUE}
 
 sample(c("A", "B", "C", "D", "E"), replace = T)
 sample(c("A", "B", "C", "D", "E"), replace = T)
@@ -324,7 +324,7 @@ sample(c("A", "B", "C", "D", "E"), replace = T)
 
 Notice that because items are returned to the source data before every draw, they can be *over*sampled. Contrast this with sampling without replacement:
 
-```{r x10, exercise = T}
+```{r x10, exercise = TRUE}
 
 sample(c("A", "B", "C", "D", "E"), replace = F)
 sample(c("A", "B", "C", "D", "E"), replace = F)
@@ -340,7 +340,7 @@ In general in R programming it is best to avoid loops, as they can be quite slow
 
 In a for loop, the index or counter for each iteration is defined in the first line of code: `for(i in 1:n)`.  Here the index is `i` (but we could choose any string, such as `for(reps in 1:n)`). In the first loop `i` will be 1, in the second 2, and so on.  If we want to store information generated in each loop, then we need to initialize an empty vector or data frame beforehand.  In the above code we indexed the initialized vector, `bootstrap_distribution`, with `i`---``bootstrap_distribution[i]`---so that each loop adds a new value to the vector up to `n`. Here is a simple example.
 
-```{r x10_25, exercise = T}
+```{r x10_25, exercise = TRUE}
 
 for(i in 1:10){
   print(i)
@@ -354,7 +354,7 @@ for(i in 1:10){
 
 Setting the seed once before the loop will suffice to make the results reproducible.  That is because R will automatically change the seed with each new random process (each bootstrap sample in each loop in this case) but will do so deterministically.  So the seed for each loop will not be the value set originally---if it were there would be no variation---but will be deterministically related to the one before.  Consider:
 
-```{r x10_5, exercise = T}
+```{r x10_5, exercise = TRUE}
 set.seed(123)
 sample(c("A", "B", "C", "D", "E"), replace = T)
 sample(c("A", "B", "C", "D", "E"), replace = T)
@@ -371,7 +371,7 @@ The results are identical, and therefore reproducible, even though we have not e
 
 We have seen how to use the bootstrap to calculate the SE for a sample median.  In the case of the median, there is no alternative estimation method, so we cannot compare the performance of the bootstrap to an accepted benchmark. In order to convince you that the method works, let's now use the bootstrap to calculate SEs for RegionEx and MDA *mean*  flight delay (technically, SEMs), and compare the results to the following CIs estimated analytically:
 
-```{r x11, exercise = T}
+```{r x11, exercise = TRUE}
 # Calculate summary statistics
 d %>% 
   group_by(airline) %>% 
@@ -386,7 +386,7 @@ Note that the implementation will be a little different because our goal is to r
 
 Here is the bootstrapped CI for RegionEx mean delay.
 
-```{r ex12, exercise = T}
+```{r ex12, exercise = TRUE}
 # Initialize empty vector
 boot_distribution <- NULL
 
@@ -407,7 +407,7 @@ quantile(boot_distribution, probs = c(.025, .975))
 ```
 
 
-```{r ex13, exercise = T}
+```{r ex13, exercise = TRUE}
 # Initialize empty vector
 boot_distribution <- NULL
 
@@ -438,7 +438,7 @@ The resulting CIs are very close to those we estimated analytically, using the f
 
 <!-- The Mann-Whitney test is analogous to the t-test.  The null hypothesis, when comparing two samples, is that they both come from the same population.   -->
 
-<!-- ```{r ex14_5, exercise = T} -->
+<!-- ```{r ex14_5, exercise = TRUE} -->
 <!-- # The syntax is the same as the t-test -->
 <!-- wilcox.test(x = filter(d, airline=="RegionEx")$delay, -->
 <!--             y = filter(d, airline=="MDA")$delay,  -->
@@ -448,7 +448,7 @@ The resulting CIs are very close to those we estimated analytically, using the f
 
 <!-- The KS test is similar.   -->
 
-<!-- ```{r ex14, exercise = T} -->
+<!-- ```{r ex14, exercise = TRUE} -->
 <!-- # The syntax is the same as the t-test -->
 <!-- ks.test(x = filter(d, airline=="RegionEx")$delay, -->
 <!--             y = filter(d, airline=="MDA")$delay,  -->
@@ -460,7 +460,7 @@ The resulting CIs are very close to those we estimated analytically, using the f
 
 <!-- The Kruskal-Wallis test is analogous to ANOVA, in that it can compare multiple samples  The null hypothesis, when comparing samples, is that they both come from the same population.  The syntax is a little different from  `t.test()` or `wilcox.test()`.  Group membership is specified with the `g` argument: -->
 
-<!-- ```{r ex15, exercise = T} -->
+<!-- ```{r ex15, exercise = TRUE} -->
 <!-- kruskal.test(x = d$delay, -->
 <!--              g = d$airline) -->
 
@@ -472,7 +472,7 @@ The resulting CIs are very close to those we estimated analytically, using the f
 
 As we've noted, assessing airline performance in terms of average delay is misleading, due to the outliers in RegionEx delays. Nevertheless, we can bootstrap a confidence interval for the average difference in delay and compare it to the t-test interval for comparison. Here are the results of t-test:
 
-```{r ex13_1, exercise = T}
+```{r ex13_1, exercise = TRUE}
 t.test(filter(d, airline == "RegionEx")$delay,
        filter(d, airline == "MDA")$delay)
 ```
@@ -480,7 +480,7 @@ The difference in average delay is statistically significant. The confidence int
 
 Here is the bootstrap estimate of the same quantity:
 
-```{r ex13_2, exercise = T}
+```{r ex13_2, exercise = TRUE}
 # Initialize empty vector
 boot_distribution <- NULL
 

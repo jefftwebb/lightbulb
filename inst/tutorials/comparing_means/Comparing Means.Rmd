@@ -95,7 +95,7 @@ A <- click_data$A
 
 Take a closer look at the click data:
 
-```{r summary, exercise = T}
+```{r summary, exercise = TRUE}
 click_data %>% 
   select(-Day) %>% 
   summary
@@ -106,7 +106,7 @@ Hmmmm.  The mean is slightly higher for the A group, compared to B, as is the me
 
 Plot the observations.
 
-```{r plot, exercise = T}
+```{r plot, exercise = TRUE}
 click_data %>% 
   pivot_longer(-Day, names_to = "Group", values_to = "Clicks") %>% 
   ggplot(aes(Clicks, col = Group)) +
@@ -262,7 +262,7 @@ In the normal distribution 68% of the observations are within approximately $\pm
 
 This plot depicts a normal density curve. What is the cumulative distribution of probability densit in the red portion of the curve in the range [$\mu - \sigma$, $\mu + \sigma$]? The picture says 68.27. For $N(0,1)$, the corresponding range would be $[0-1, 0+1]$. As we saw in the last module, we can calculate this density directly using the `pnorm()` function:
 
-```{r x7, exercise = T}
+```{r x7, exercise = TRUE}
 # Calculate probability density for [-1, 1]
 (pnorm(q = 1, mean = 0, sd = 1) - 
    pnorm(q = -1, mean = 0, sd = 1)) * 100
@@ -277,7 +277,7 @@ This plot depicts a normal density curve. What is the cumulative distribution of
 
 <!-- Is the B observation consistent with the properties of the A distribution? We can answer this using NHST reasoning and `pnorm()`.  The basic strategy  is to compare the single B mean to the distribution of A means to see how rare it would be. How often would observations as extreme or more extreme than B happen for the A ad given that the mean of A was 294.89 with standard deviation of 103.31?  -->
 
-<!-- ```{r x2, exercise = T} -->
+<!-- ```{r x2, exercise = TRUE} -->
 <!-- # Calculate p-value -->
 <!-- pnorm(q = 98.83, mean = 294.89, sd = 103.31) -->
 <!-- ``` -->
@@ -452,7 +452,7 @@ For the A/B test, $\bar{x_1}$ would be the observed mean for A, $\bar{x_2}$ the 
 
 Here is the calculation of $t$:
 
-```{r x11, exercise = T}
+```{r x11, exercise = TRUE}
 # Extract values
 
 click_data %>% 
@@ -470,7 +470,7 @@ click_data %>%
 
 The $t$-statistic is then used to calculate a p-value with a t-distribution as the null.  To get a p-value, we must evaluate the t-statistic using the appropriate degrees of freedom.  Using the conservative shortcut outlined above, degrees of freedom will be the smaller of $n_1 -1$ and $n_2 -1$, which, because the samples are the same size, will be 30 - 1 = 29.  The `pt()` function, which is analogous to `pnorm()`, will calculate the probability density of t-statistics more extreme than the one observed for $T(29)$. In this case our t-statistic is positive, since it lies in the right (upper) tail.  We want to calculate the probability of getting t-statistics that are *equal to or more extreme than the one we have observed*. We therefore need to be careful to calculate the probability not from $[-\infty, .28]$ but rather from $[.28, \infty]$.
 
-```{r x12, exercise = T}
+```{r x12, exercise = TRUE}
 # Calculate 1-sided p-value
 pt(q = .281, df = 30 - 1, lower.tail = F) 
 
@@ -509,7 +509,7 @@ Here is a good discussion of the [differences between one- and two-tailed t-test
 
 It is a good idea to double check your work using the built-in `t.test()` function.
 
-```{r x13, exercise = T}
+```{r x13, exercise = TRUE}
 # Two-sample, two-tailed t-test
 
 t.test(x = click_data$A, # first sample
@@ -537,7 +537,7 @@ To calculate a 95% CI for a mean based on a single sample we would use this form
 What is the critical value? Remember that $\frac{s}{\sqrt{n}}$ is the standard deviation of the sampling distribution for the sample mean or $SE$.  We know that the sampling distribution is normal (due to the central limit theorem).  The probability density of that distribution can therefore be described precisely in terms of $SE$, with 95% of the observations lying within approximately $\pm$ 2 standard deviations of the mean.  Hence, the critical value for a 95% CI is approximately 2.  What is the number exactly? We can calculate it with the `qnorm()` function.  This function will find the standard deviations (also commonly referred to as z-scores) associated with a particular quantile of the standard normal distribution.  Since we want to apportion half of $\alpha$ in the lower tail and half in the upper (for a conservative, 2-tailed test), the quantiles for $\alpha = .05$ would be [.025, .975].
 
 
-```{r qnorm, exercise = T}
+```{r qnorm, exercise = TRUE}
 # Calculate critical value for 95% z-confidence interval
 qnorm(c(.025, .975)) %>% 
   round(2)
@@ -551,7 +551,7 @@ Here is the calculation for the A/B test:
 
 <!-- However, $\frac{s}{\sqrt{n}}$ is an estimate of the standard error, which, as we've seen, is the standard deviation of a sampling distribution. A is already a sampling distribution, so in this instance we do not need to divide $s$ by $\sqrt{n}$. We will just use $s$. -->
 
-```{r x14, exercise = T}
+```{r x14, exercise = TRUE}
 # Calculate 95% z-confidence interval for the difference in means
 click_data %>% 
   summarize(n = n(),
@@ -576,7 +576,7 @@ The above calculation is for a so-called z-interval based on the normal distribu
 
 The calculation is straightforward. We simply  identify the critical values for the t-distribution at the specified degrees of freedom using the quantile function for the t-distribution, `qt()`, which is analogous to the `qnorm()` function.  The degrees of freedom parameter, for each group, will be $n - 1 = 30 -1 =29$. 
 
-```{r qt, exercise = T}
+```{r qt, exercise = TRUE}
 # Calculate critical value for 95% t-interval 
 qt(c(.025, .975), df = 29) %>% 
   round(2)
@@ -585,18 +585,18 @@ qt(c(.025, .975), df = 29) %>%
 As expected, this will produce a wider interval than the z-interval above.  Being wider, it will be more conservative, having a greater chance of including 0. Remember:  we do not reject the null hypothesis of no difference if the interval includes 0.  However, the greater conservatism of the t-interval is entirely dependent on the size of the sample. Observe  what happens to the critical values for a t-interval   at larger  sample sizes:
 
 DF = 50:
-```{r qt_ex1, exercise = T}
+```{r qt_ex1, exercise = TRUE}
 qt(c(.025, .975), df = 50) %>% round(2)
 ```
 
 
 DF = 100:
-```{r qt_ex2, exercise = T}
+```{r qt_ex2, exercise = TRUE}
 qt(c(.025, .975), df = 100) %>% round(2)
 ```
 
 DF = 500:
-```{r qt_ex3, exercise = T}
+```{r qt_ex3, exercise = TRUE}
 qt(c(.025, .975), df = 500) %>% round(2)
 ```
 
@@ -604,7 +604,7 @@ With degrees of freedom = 500, a t-interval has converged to a z-interval.
 
 Here is the calculation for the 95% t-intervals:
 
-```{r x15, exercise = T}
+```{r x15, exercise = TRUE}
 # Calculate 95% t-interval for the difference in means
 click_data %>% 
   summarize(n = n(),
@@ -639,7 +639,7 @@ delay <- read_csv("data/flight_delay_clean.csv")
 
 We will work with the delay variable, which has the following distribution for MDA vs. RegionEx:
 
-```{r x16, exercise = T}
+```{r x16, exercise = TRUE}
 # Plot delay by airline
 ggplot(delay, aes(delay, col = airline))+
   geom_density() +
@@ -649,7 +649,7 @@ ggplot(delay, aes(delay, col = airline))+
 
 Calculate summary statistics for the two samples.  We should not round the calculated values for mean or standard deviation since we will be using them in further calculations.  (Rounding inputs leads to rounding error!)
 
-```{r x17, exercise = T}
+```{r x17, exercise = TRUE}
 # Calculate summary statistics
 delay %>% 
   group_by(airline) %>% 
@@ -665,7 +665,7 @@ delay %>%
 Next, calculate 95% t-intervals for the means in order to do informal inference. We first need to find the critical t-values, which will be different for each airline, which will be $n -1$:
 
 
-```{r x18, exercise = T}
+```{r x18, exercise = TRUE}
 # Find critical values for df = 120 -1 (MDA)
 
 qt(c(.025, .975), df = 119)
@@ -677,7 +677,7 @@ qt(c(.025, .975), df = 239)
 
 Now we can calculate the t-intervals, which is easy to do manually:
 
-```{r x18_5, exercise = T}
+```{r x18_5, exercise = TRUE}
 # MDA
  10.9 - 1.98 * .579
  10.9 + 1.98 * .579
@@ -709,7 +709,7 @@ $$
 
 A two-sample t-test is needed because we are comparing, as above, two samples. We can use the summary table above to calculate a t-statistic.  To avoid excessive rounding error we will include 4 decimals for each input using the above table.
 
-```{r x20, exercise = T}
+```{r x20, exercise = TRUE}
 # Define function to calculate t for a 2 sample test
 find_t <- function(x1, x2, s1, s2, n1, n2){
   var1 <- s1^2
@@ -731,7 +731,7 @@ find_t(x1 = 10.9,
 
 Compare this value of $t$ to a null distribution defined by $T(119)$ (as explained above).   To get the associated p-value use `pt()`.  Remember to multiply the p-value by 2 for a two-tailed test.
 
-```{r x21, exercise = T}
+```{r x21, exercise = TRUE}
 # Calculate p-value for two-tailed test
 pt(q = -2.5383, df = 120 -1) * 2
 
@@ -743,7 +743,7 @@ We can reject the null hypothesis that there is no difference in arrival delays 
 
 Here is a plot of the null distribution including critical values and the observed $t$-statistic. Note that `dt()` returns the density of the $t$-distribution with defined degrees of freedom for different input values. Also, `qt()` is analogous to `qnorm()`, used here to identify the critical values that define the rejection regions at the 2.5th and 97.5th percentiles. 
 
-```{r x22, exercise = T}
+```{r x22, exercise = TRUE}
 # Define critical values
 critical_values <- qt(c(.025, .975), df = 120 - 1)
 
@@ -769,7 +769,7 @@ data.frame(t = seq(from = -5, to = 5, by = .01)) %>%
 
 Finally, we can double-check our work using the built in `t.test()` function. The results should be close.
 
-```{r x23, exercise = T}
+```{r x23, exercise = TRUE}
 # Use built in t.test() function
 t.test(filter(delay, airline=="MDA")$delay,
        filter(delay, airline=="RegionEx")$delay,
@@ -788,7 +788,7 @@ In using a t-test we are assuming that the distributions being compared are norm
 
 Still, it is not a bad idea to check our results using the non-parametric  `wilcox.test()`:
 
-```{r echo = T}
+```{r echo = TRUE}
 wilcox.test(filter(delay, airline=="MDA")$delay,
        filter(delay, airline=="RegionEx")$delay,
        alternative = "two.sided")
