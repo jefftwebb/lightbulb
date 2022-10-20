@@ -49,7 +49,7 @@ A market response model relates inputs such as price and advertising  to an outp
 
 The following data set represents aggregate beer sales for 124 weeks at a grocery store. Start, as always, by inspecting the data:
 
-```{r x1, exercise = T}
+```{r first_chunk, exercise = T}
 # Inspect
 glimpse(sales)
 summary(sales)
