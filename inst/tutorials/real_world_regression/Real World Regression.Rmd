@@ -331,7 +331,7 @@ Here is the code for fitting a linear model in `caret` and imputing missing obse
 
 
 
-```{r x9, exercise = T, warnings = F, message=F}
+```{r x9, exercise = TRUE, warnings = F, message=F}
 # Fit linear model
 (caret_lm <- train(x = numeric_frame,
                   y = c$Sales,
