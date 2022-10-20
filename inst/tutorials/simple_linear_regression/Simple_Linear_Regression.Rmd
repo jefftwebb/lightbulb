@@ -94,7 +94,7 @@ Can we say that price *causes*  this decrease in sales? Not at all.  This is one
 
 Fitting a linear response model in R is very straightforward. The workhorse function for linear modeling is `lm()`,  which uses the so-called "formula syntax," `y ~ x`, that is nearly universal among R model functions  and that mimics the conceptual formulation of the regression function. (`y` is usually used to represent the target or response variable in a regression, while `x` represents the explanatory or predictor variable.)  We use `lm()` as follows:
  
-```{r ex4, exercise = T}
+```{r four, exercise = T}
 # Fit the model and save as an object
 (model <- lm(sales ~ price, data = sales))
 ```
@@ -119,7 +119,7 @@ It is important to keep the estimated slope coefficient in perspective. Does it 
 
 Consider the following example regression:
 
-```{r ex5, echo = F}
+```{r echo = F}
 reg_ex <- data.frame(x = c(0, 3, 7, 10),
                      y = c(5,5,27,31))
 
@@ -135,7 +135,7 @@ ggplot(reg_ex, aes(x, y)) +
 
 Each gridline represents an increment of 5 on the y-axis. Here is a table of values:
 
-```{r ex6, echo = F}
+```{r echo = F}
 library(knitr)
 reg_ex$residuals <- resid(lm(y ~ x, data = reg_ex))
 
@@ -145,7 +145,7 @@ reg_ex[, 1:2]
 
 
 
-```{r ex7, echo = F}
+```{r five, echo = F}
 quiz(
   question("What are the approximate residuals for this regression?",
     answer("3, 6, 4, 1", message =" Residuals  below the regression line or negative, while those above are positive. The answer should be: 3, -6, 4, -1."),
@@ -155,7 +155,7 @@ quiz(
 
 ```
 
-```{r ex8, echo = F}
+```{r eight, echo = F}
 quiz(
   question("What is the residual sum of squares (RSS) for this regression?  Use the residuals from the previous question.",
     answer("0", message ="Square the residuals (3, -6, 4, -1) and add them together: 9 + 36 + 16 + 1 = 62."),
@@ -167,7 +167,7 @@ quiz(
 ```
 
 
-```{r ex9, echo = F}
+```{r nine, echo = F}
 quiz(
   question("A approximate equation for this regression line would be:",
     answer("Impossible to determine", message ="The intercept is the value of  y when x equals 0. The slope is the change in y associated with a one unit change in x. Hence y = 2 + 3x"),
@@ -189,7 +189,7 @@ quiz(
 
 Information can be extracted from the model using the generic `summary()` function. 
 
-```{r ex10, exercise = T}
+```{r ten, exercise = T}
 # Obtain more information with summary() 
 model %>% 
   summary
@@ -200,7 +200,7 @@ Let's take each of these elements in turn, starting with residuals.
 
 **Residuals**, denoted  $e_i$, represent the difference between the linear regression line,  or fitted values from the model, and the actual observations: $e_i = y_i - \hat{y_i}$, or, equivalently, $e_i = y_i - \hat{\beta_0} + \hat{\beta_1} x_i$.  (We index each residual, observation and fitted value with $i$ because these are row-specific values, not summaries, like the coefficients.) Here is visualization of the residuals for the market response model (minus the one large outlier):
 
-```{r ex11, echo = F}
+```{r echo = F}
 newsales <- sales
 newsales$fitted <- predict(model)
 
@@ -224,14 +224,14 @@ Also called "model errors," residuals tell us exactly  where the model is making
 The output for the market response model shows that the max residual is much larger than the minimum residual (1285.79 vs. -121.96), whereas they should be symmetrical about 0 (that's what $N(0, \sigma^{2})$ means).  This indicates that the data contains  large sales observations that are not well described by the model. The median residual is negative,  which tells us that the majority of observations lie below the regression line and that the mean---guaranteed to be 0 by the least squares fitting procedure---is getting pulled away from the median by large positive outliers. 
 
 To analyze the residuals, it helps to visualize them. In a conventional residual plot, the fitted values go on the x-axis and residuals on the y-axis. 
-```{r ex12, include=F}
+```{r include=F}
 errors <- data.frame(residuals = resid(model),
                      fitted = fitted(model))
 
 ```
 
 
-```{r ex13, exercise = T, message=F}
+```{r eleven, exercise = T, message=F}
 # Two ways to visualize residuals:
 
 # The built in way:
@@ -254,7 +254,7 @@ There are several points to make about the above code:
 
 `fitted()` or `predict()` will extract the fitted values from the model object. (`predict()` is the more general function.)  By including the `newdata`  argument to `predict()` we can use the model--- which is actually just the model equation---to compute predicted values of the outcome given new inputs. For example, what is  predicted sales for a price of 4?
 
-```{r ex14, exercise = T}
+```{r twelve, exercise = T}
 # Use predict() to estimate sales at price = 4
 predict(model, newdata = data.frame(price = 4))
 ```
@@ -262,7 +262,7 @@ This is just the value of sales when price is 4 as defined by the model equation
 
 When the `newdata` argument is not included, `predict()`  returns the fitted values of the model and is exactly equivalent to `fitted()`. 
 
-```{r ex15, exercise = T}
+```{r thirteen, exercise = T}
 # Compare predict() to to fitted()
 predict(model) %>% head 
 fitted(model) %>% head
@@ -273,7 +273,7 @@ In simple linear models it is easy to anticipate what the residuals will look li
 
 We can also look at a histogram of the residuals, which, again, for a model with good fit, should be centered at 0 and normal in shape.
  
-```{r ex16, exercise = T, warning=FALSE, message = F}
+```{r fourteen, exercise = T, warning=FALSE, message = F}
 # Histogram of residuals 
 ggplot(errors, aes(residuals)) +
   geom_histogram() +
@@ -291,7 +291,7 @@ $$RMSE = \sqrt{\frac{\sum_{i=1}^n (y_i - \hat{y_i})^2}{df}}$$
 
 where $y_i - \hat{y_i}$ represents  model residuals, $\sum_{i=1}^n (y_i - \hat{y_i})^2$ is the residual sum of squares or RSS, and $df$ is degrees of freedom, the number of observations minus the number of model parameters,$n-p$, which in this case is two:  an intercept and a coefficient. To compute RMSE it is most convenient to define a function.
 
-```{r ex17, exercise = T}
+```{r fifteen, exercise = T}
 # Define RMSE function
 rmse <- function(actual, fitted, n, p){
   squares <- (actual-fitted)^2
@@ -314,7 +314,7 @@ $$RMSE = \sqrt{\frac{\sum_{i=1}^n (y_i - \hat{y_i})^2}{n}}$$
 
 We can code this simpler version of RMSE as follows:
 
-```{r ex18, exercise = T}
+```{r sixteen, exercise = T}
 # Calculate simpler RMSE
 
 (sales$sales - fitted(model))^2 %>% 
@@ -389,7 +389,7 @@ As discussed in the last module, **SE** is the standard deviation of a sampling 
 
 The SE can be used to compute approximate  95% t-intervals for model coefficients:  $\widehat{price} \pm 2  *SE$.  Why 2?  That level of precision is probably sufficient for most applications.  If we wanted to be more careful we could find the exact critical t-value for the degrees of freedom ($n - p$).  In R code:
 
-```{r ex19, exercise = T}
+```{r seventeen, exercise = T}
 # Define variables
 beta_hat <- -111.38
 critical_value <- 2 
@@ -403,7 +403,7 @@ beta_hat + critical_value * se
 
 The `confint()` function can also be used to compute exact confidence intervals for model parameters:
 
-```{r ex20, exercise = T}
+```{r eighteen, exercise = T}
 confint(model)
 ```
 
@@ -413,7 +413,7 @@ The 95% CI basically tells us the expected range of the large majority of coeffi
 
 We can use the CI for informal statistical inference.  **If the 95% CI does not include 0 then we would say that the coefficient is statistically significant.**  Why 0? A coefficient of 0, remember, indicates no relationship between predictor and outcome, represented by a flat regression line. The situation, using hypothetical data, might look something like this:
 
-```{r ex21, echo=F}
+```{r nineteen, echo=F}
 set.seed(143)
 df <- data.frame(x = seq(1,100) + runif(100),
                  y = runif(100))
@@ -427,7 +427,7 @@ ggplot(df, aes(x,y)) +
 
 In this plot the flat line indicates that an increase in $x$ is associated with no change in $y$.  However, even if there is no relationship between $x$ and $y$ in the population we would expect, with repeated sampling, non-zero coefficients for $x$ in some samples. The situation would look something like this, using the same hypothetical data and simulating multiple regression lines:
 
-```{r ex22, echo=F}
+```{r echo=F}
 set.seed(143)
 df <- data.frame(x = seq(1,100) + runif(100),
                  y = runif(100))
@@ -450,7 +450,7 @@ stat_smooth(data= sample_n(df, 50), aes(x,y), geom="line",method = "lm", se= F, 
 This is simulated data. By design, there is no relationship between $x$ and $y$, so the regression lines are mostly close to 0, without usually being exactly 0.  What about for the market response model? Here is a similar plot for that data with simulated regression lines.
 
 
-```{r ex23, echo=F}
+```{r  echo=F}
 ggplot(sales, aes(price,sales)) +
   geom_point(alpha = .5) +
   stat_smooth(data= sample_n(sales, 50), aes(price,sales), geom="line",method = "lm", se= F, alpha = .5, col="blue") +
@@ -469,7 +469,7 @@ stat_smooth(data= sample_n(sales, 50), aes(price,sales), geom="line",method = "l
 
 The slopes of these regression lines can be extracted  from the regression output, expressed numerically, and displayed in a density plot with lines added to indicate the lower and upper bounds of the 95% CI.  
 
-```{r ex24, echo = F}
+```{r twenty echo = F}
 slopes <- NULL
 for(i in 1:1000){
   d <- sample_frac(sales, 1, replace = T)
@@ -509,7 +509,7 @@ The model summary function uses a t-test to do formal inference with NHST on the
 
 As noted, the null distribution for the slope coefficient is a t-distribution.  Why?  The t-distribution has fatter tails than the normal distribution and works better (is more conservative) when $n$ is small. (At larger $n$ it is basically identical to the normal distribution.) The basic idea is that we convert the coefficient to a standardized t-value (dividing it by the SE) and then compare the t-value to the null distribution of slopes defined as $T(df = n-1)$. The situation can be visualized as follows for the market response model:
 
-```{r ex25, echo = F}
+```{r  echo = F}
 
 regions <- qt(c(.025, .975), 123)
 
@@ -535,7 +535,7 @@ This is the theoretical  distribution of regression slopes under the null hypoth
 
 This result can be verified by calculating an exact p-value.  What is the probability under the null of observing a t-value equal to or more extreme than 3.24 or -3.24 (we include both tails for a two-tailed test)? Specifically, is that probability lower than the $p < .05$ threshold for statistical significance?
 
-```{r ex26, exercise = T}
+```{r twentyone, exercise = T}
 # Calculate exact t-value
 (tvalue <- -111.38 / 34.38)
 
@@ -663,7 +663,7 @@ Is a change in `coupon` associated with changes in `sales`?  (Notice that, for r
 
 As is our practice, let's do some exploratory analysis of this relationship.
 
-```{r ex27, exercise = T}
+```{r twentytwo, exercise = T}
 # Summary table
 sales %>% 
   group_by(coupon) %>% 
@@ -675,7 +675,7 @@ sales %>%
 
 Coupon promotions, while rather infrequent, were associated with much higher weekly sales. The statistical question, of course, is whether this relationship was likely to have happened by chance. Before considering that, however, let's visualize the relationship using a boxplot:
 
-```{r ex28, exercise = T}
+```{r twentythree, exercise = T}
 # Boxplot
 ggplot(sales, aes(coupon, sales)) +
   geom_boxplot()+
@@ -685,7 +685,7 @@ ggplot(sales, aes(coupon, sales)) +
 
 It certainly *looks* like `coupon` would be a good predictor of `sales`. What does this mean exactly? Going from `no` to `yes` in coupon was associated with a fairly large difference in sales.  Consequently, knowing whether a coupon promotion was being conducted would allow us to make a more accurate guess about sales.  But what would the *linear* relationship between a factor variable, `coupon`, and a continuous variable,`sales`, look like?  `ggplot` will not plot a regression line when the x-axis variable is a factor, so the procedure for plotting in this case is to make `coupon` numeric by turning it into a 0/1 variable.
 
-```{r ex29, exercise = T}
+```{r twentyfour, exercise = T}
 # Plot with regression line
 
 sales %>% 
@@ -700,7 +700,7 @@ sales %>%
 
 This scatterplot looks strange because the points are overplotted.  We can use `geom_jitter()` instead which randomly offsets the points and makes the distribution of sales more visible at each level of `coupon`:
 
-```{r ex30, exercise = T}
+```{r twentyfive, exercise = T}
 # Plot with jittered points and regression line
 sales %>% 
   mutate(coupon = ifelse(coupon == "yes", 1, 0)) %>% 
@@ -714,7 +714,7 @@ sales %>%
 
 The regression line in this case connects average sales when `coupon` is 0 to average sales when `coupon` is 1.  The slope of that line therefore corresponds to the change in average sales associated with a 1-unit increase in coupon.  That change will be represented by the coefficient for `coupon` in the following regression (the syntax for which, note, is exactly the same as when using a continuous predictor):
 
-```{r ex31, exercise = T}
+```{r twentysix, exercise = T}
 # Fit model
 (coupon_model <- lm(sales ~ coupon, data = sales)) %>% 
   summary
@@ -729,7 +729,7 @@ The **coefficient** for a categorical predictor represents the change in the out
 
 The `predict()` function can be used to obtain the same quantities:
 
-```{r ex32, exercise = T}
+```{r twentyseven, exercise = T}
 # With a coupon promotion. Note: the input to newdata must be a dataframe.
 predict(coupon_model, newdata = data.frame(coupon = "yes")) 
 
@@ -740,7 +740,7 @@ predict(coupon_model, newdata = data.frame(coupon = "no"))
 
 To demystify regression a bit, consider that we can reproduce these numbers exactly using simple `dplyr` code to calculate conditional means.  What is a conditional mean?  Rather than calculating the *overall* mean of `sales`, we instead calculate its mean *conditional* on the level of another variable, in this case `coupon`.
 
-```{r ex33, exercise = T}
+```{r twentyeight, exercise = T}
 # Calculate conditional means
 sales %>% 
   group_by(coupon) %>% 
