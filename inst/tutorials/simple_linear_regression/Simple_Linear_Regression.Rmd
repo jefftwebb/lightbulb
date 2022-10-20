@@ -77,7 +77,7 @@ ggplot(sales, aes(price, sales)) +
 
 There is, clearly, quite a bit  non-linearity in this relationship,  with  bumps in sales  at certain prices and one large outlier (perhaps a holiday). The plot makes it clear that there is likely a lot more to  sales than just price. Nevertheless, the plot suggests there is a *slight* negative relationship between sales and price in this plot, such that increases in price---as we would expect---are associated with decreases in sales.   If we remove the outlier for purposes of visualization the relationship becomes clearer:
 
-```{r second_chunk, exercise = T}
+```{r second_chunk, exercise = TRUE}
 # Visualize sales ~ price without outlier
 sales %>% 
   filter(sales < 1000) %>% 
