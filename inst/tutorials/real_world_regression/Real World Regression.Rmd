@@ -106,7 +106,7 @@ As an example, we will use a dataset from the `ISLR` package: `Carseats`.  This 
 
 To get started, take a look at the data:
 
-```{r x1, exercise = T}
+```{r x1, exercise = TRUE}
 summary(Carseats) 
 glimpse(Carseats)
 ```
@@ -117,7 +117,7 @@ However, since a common feature of real-world data is missing data, represented 
 
 
 
-```{r x2, exercise = T}
+```{r x2, exercise = TRUE}
 # Summarize dataset with missing observations
 summary(c)
 ```
@@ -126,7 +126,7 @@ summary(c)
 
 The number of NAs in this new dataset is relatively modest---approximately 10% of every variable is missing, with the exception of the outcome variable, `Sales`, which has no NAs.  However, the proportion of missing observations in the entire data set will be much, much higher for regression modeling purposes, since `lm()` will use only complete cases---rows with no missing observations. How many complete cases are there? 
 
-```{r x3, exercise = T}
+```{r x3, exercise = TRUE}
 # Count complete cases
 na.omit(c) %>% 
   nrow
@@ -174,7 +174,7 @@ What are dummy variables?  From the previous tutorial:
 
 Dummy coding categorical variables to obtain an entirely numeric predictor set is not an exotic procedure.  In fact, this is precisely what`lm()` function does automatically in the background prior to fitting.  The so-called "model matrix," automatically produced by `lm()`, consisting of an entirely numeric predictor set, can be extracted from the model object using the `model.matrix()` command.  Observe:
 
-```{r x4, exercise = T}
+```{r x4, exercise = TRUE}
 # Fit a model of Sales with all predictors
 carseat_model <- lm(Sales ~ ., data = c) 
 
@@ -189,7 +189,7 @@ Notice that all of these columns are numeric. The number of dummy variables for 
 
 
 
-```{r x4-5, exercise = T}
+```{r x4-5, exercise = TRUE}
 # Create dummy variables
 dummies <- dummyVars(Sales ~ ., data = c, fullRank = T) 
 
@@ -226,7 +226,7 @@ When might you want to remove near zero variance predictors?  Here are some cons
 
 These considerations don't really apply to the final project, since that data is modestly sized and the goal is prediction.  For reference, here is a quick example of how to use `nzv()`:  
 
-```{r x5, exercise = T}
+```{r x5, exercise = TRUE}
 # Find nzv predictors
 nzv(numeric_frame)
 
@@ -246,7 +246,7 @@ This result tells us that all the columns in this dataset have enough variance t
 
 <!-- ``` -->
 
-<!-- ```{r x6, exercise = T} -->
+<!-- ```{r x6, exercise = TRUE} -->
 <!-- # Create dummy variables for all 2-way interactions -->
 <!-- expanded_frame <- dummyVars(Sales ~ .^2, data = c, fullRank = T) %>%  -->
 <!--   predict(newdata = c) -->
@@ -262,7 +262,7 @@ This result tells us that all the columns in this dataset have enough variance t
 
 <!-- We now have 65 numeric predictors, with just 144 complete cases in the data.  This will work.  (The OLS algorithm will not work at all when the number of predictors is larger than the number of observations.)  However, there may not be much information in these columns.  How many of these new columns have near zero variance? -->
 
-<!-- ```{r x7, exercise = T} -->
+<!-- ```{r x7, exercise = TRUE} -->
 <!-- # Check for near zero variance predictors -->
 <!-- nzv(expanded_frame) -->
 
@@ -276,7 +276,7 @@ This result tells us that all the columns in this dataset have enough variance t
 
 <!-- ``` -->
 
-<!-- ```{r x8, exercise = T} -->
+<!-- ```{r x8, exercise = TRUE} -->
 <!-- # Remove nzv predictors -->
 <!-- new_frame <- expanded_frame[, -nzv(expanded_frame)] -->
 
@@ -291,7 +291,7 @@ This result tells us that all the columns in this dataset have enough variance t
 
 
 
-<!-- ```{r x8.5, exercise = T} -->
+<!-- ```{r x8.5, exercise = TRUE} -->
 <!-- # Model all the data -->
 <!-- set.seed(123) -->
 <!-- train(y = c$Sales, -->
@@ -301,7 +301,7 @@ This result tells us that all the columns in this dataset have enough variance t
 <!-- ``` -->
 
 
-<!-- ```{r x8.75, exercise = T} -->
+<!-- ```{r x8.75, exercise = TRUE} -->
 <!-- # Model with nzv variables removed -->
 <!-- set.seed(123) -->
 <!-- train(y = c$Sales, -->
@@ -344,7 +344,7 @@ By default, `caret` uses bootstrap cross-validation.  This consists in taking a 
 
 This bears repeating:  The information `caret` automatically printed to the screen **is not the model's in-sample performance!**  *It is a cross-validation estimate of the model's out-of-sample performance.*  (Note: because cross-validation involves random sampling, the estimated out-of-sample performance will change slightly every time the model is run.) To get the in-sample performance we simply run a summary of the model object:
 
-```{r x10, exercise = T}
+```{r x10, exercise = TRUE}
 # Get model summary
 summary(caret_lm)
 
@@ -368,7 +368,7 @@ Here is an example of the syntax.
 
 
     
-```{r x10-1, exercise = T}
+```{r x10-1, exercise = TRUE}
 # Remember to remove the target and set the seed
 set.seed(123)
 imputed <- missForest(select(c, -Sales))$ximp
@@ -381,7 +381,7 @@ Result:  no missings.  It is now safe to add the outcome variable back into the 
 
 Which one of the these imputation methods---with medians or with missForest---is more accurate?  In this case, since we  inserted the missing observations into this dataset for illustration, we can compare the imputations to the truth. Here is plot showing a head-to-head comparison of imputation error by variable for the two methods.  Input variables have been scaled for comparability.  Overall, missForest has slightly lower imputation error, but negligibly so. 
 
-```{r, results = T}
+```{r, results = TRUE}
 set.seed(123)
 imputed$Sales <- NA
 missing_dummies <- dummyVars(Sales~., fullRank = T, data = c) %>% predict(c) %>% data.frame
@@ -455,7 +455,7 @@ The linear model from the previous section has a multiple $R^2$ value of  .78, a
 What would a complicated model look like?  Using the imputed dataset created with `missForest` we will create a model that includes all possible two way interactions. We excluded the outcome variable for imputation, so we  need to add it back in when specifying the data source. Observe what happens to the error metrics.
 
 
-```{r x11, exercise = T}
+```{r x11, exercise = TRUE}
 # Fit and assess a complicated linear model
 (caret_overfit <- train(Sales ~ .^2,
                   method = "lm",
@@ -471,7 +471,7 @@ We now see rather large differences between multiple $R^2$, adjusted $R^2$ and t
 A regularized model--- either Lasso or ridge--- would be a good choice to simplify the model, both for interpretation and for improving predictive performance. A good implementation of regularized linear models is in the `glmnet`  package. Specifically, `glmnet`  will fit a mixture of Lasso and ridge, with the mixture being controlled by `alpha`,  a mixing parameter, in addition to the penalty parameter, `lambda`.   Switching between a linear model and a regularized model is trivial in `caret`,  though we do have to take care to center and scale the inputs when using `glmnet` (standardization is typically required when using machine learning algorithms).  
 
 
-```{r x11-5, exercise = T}
+```{r x11-5, exercise = TRUE}
 # Fit regularized model
 set.seed(123)
 (caret_glmnet <- train(Sales ~ .^2,
@@ -487,7 +487,7 @@ For a machine learning algorithm like `glmnet`, `caret`  uses cross validation t
 
 One of the virtues of a lasso model is its simplicity, since many predictors will have been shrunk to zero, and  thereby removed from the model. We can retrieve the coefficients from the above model with the following code:
  
-```{r x12, exercise = T}
+```{r x12, exercise = TRUE}
 # Retrieve coefficients of the best model
 coef(caret_glmnet$finalModel, caret_glmnet$finalModel$tuneValue$lambda)
 
@@ -503,7 +503,7 @@ The  coefficients that have been removed are represented with a period.  The res
 
 As we have seen, to compare models realistically we need to  consider out-of-sample performance. The best model in-sample will not necessarily generalize well to new data  because  the very quality that allows it to perform well in-sample---its complexity--- means that it has begun to capture  idiosyncrasies in the training  data that will likely not exist in new data. Such a model is *over*fitting and will tend to perform poorly with new data.  `caret`  is a great tool for quickly comparing models based on a *realistic* assessment of their performance. We have seen that the glmnet model (which in this case was a pure Lasso  model) outperformed the linear model. How does a KNN regression model compare?
 
-```{r x13, exercise = T}
+```{r x13, exercise = TRUE}
 # Fit KNN regression model
 set.seed(123)
 train(Sales ~ .^2,
@@ -517,7 +517,7 @@ This KNN regression model does not do well at all---the out-of-sample error metr
 
 
 
-```{r x14, exercise = T}
+```{r x14, exercise = TRUE}
 set.seed(123)
 train(Sales ~ .^2,
       method = "knn",
@@ -533,7 +533,7 @@ Model performance is still not great, though it is better at `k` = 17.  Perhaps 
 
 While `caret` is great for iterating quickly between very different sorts of models it has some downsides.   Chief among them is that functions that will work in conjunction with a model object created by `lm()` will not always work with a `caret` model object. For example:
 
-```{r x15, exercise = T}
+```{r x15, exercise = TRUE}
 summary(caret_glmnet)
 
 ```

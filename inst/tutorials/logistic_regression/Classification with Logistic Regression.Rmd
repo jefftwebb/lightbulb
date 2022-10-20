@@ -3,7 +3,7 @@ title: "Classification with Logistic Regression"
 output: learnr::tutorial
 runtime: shiny_prerendered
 description: >
-  Learn to use logistic regression to do binary classification, and practice converting results into reportable quanitities.
+  Learn to use logistic regression to do binary classification, and practice converting results into reportable quantities.
 ---
 
 ```{r setup, include=FALSE}
@@ -154,7 +154,7 @@ data.frame(Variable = c("College", "Income",  "Overage", "Leftover", "House", "H
 
 `Leave`  is  the outcome variable. We must make sure to remove customer ID before doing any modeling. 
 
-```{r x1, exercise=T}
+```{r x1, exercise=TRUE}
 # Inspect data
 summary(m)
 
@@ -167,12 +167,12 @@ There  are missing observations in this dataset, so imputation will be part of o
 
 Note that the proportion of `LEAVE`--- the majority class in this data set---is an important benchmark for evaluating subsequent models since one possible modeling option  with a binary outcome is to  create a simple  predictive model consisting in a rule: always predict the  majority class. We'll call this benchmark model "majority class prediction." In this case, `STAY` is the majority class.  Predicting `STAY` for every customer will have an in-sample accuracy equal to the proportion in the data of the class label being predicted, which in this case is: 2526 / (2526 + 2468) = .51. (Remember that accuracy is simply the proportion of a model's correct predictions.) So, if we always predict `STAY` we will be right 51% of the time---whenever the observed outcome is `STAY`---and wrong 49% of the time---whenever the observed outcome is `LEAVE`.  This is not a great model, obviously, but it would beat random guessing---barely!---which would be correct about 50% of the time, on average. Any model we develop must have better accuracy than either random guessing or majority class prediction.
 
-<!-- ```{r ran_guess, exercise=T} -->
+<!-- ```{r ran_guess, exercise=TRUE} -->
 <!-- # Simulation of random guessing -->
 <!-- set.seed(125) -->
 <!-- random_guess <- sample(c("STAY","LEAVE"),  -->
 <!--                        size = nrow(m_missing),  -->
-<!--                        replace=T,  -->
+<!--                        replace=TRUE,  -->
 <!--                        prob = c(.5, .5)) -->
 
 <!-- # The results will vary with every simulation but the longrun -->
@@ -216,7 +216,7 @@ A logistic regression model is straightforward to fit using `glm()` function.  "
 
 Here is an example of a simple logistic regression, modeling customer churn with just one predictor, phone cost (`handset_price`).  We can ignore the issue of missing data for now because there are no missing observations in `handset_price`.
 
-```{r x2, exercise = T}
+```{r x2, exercise =TRUE}
 # Fit model
 (glm_model <- glm(leave ~ handset_price, 
                   data = m, 
@@ -228,7 +228,7 @@ Here is an example of a simple logistic regression, modeling customer churn with
 
 Here is exactly the same logistic regression, fit with `caret`'s `train()` function as a wrapper. `caret` is happy to use a factor variable as the target. However, we first need to  explicitly order the factor levels in `leave`, otherwise `caret` would use the default alphabetic ordering: we would be modeling `STAY` and our results would be reversed. 
 
-```{r x3, exercise = T}
+```{r x3, exercise =TRUE}
 # Change factor levels
 m$leave <- factor(m$leave, levels = c("STAY", "LEAVE"))
 
@@ -238,7 +238,7 @@ levels(m$leave)
 
 After that change, the results are identical.
 
-```{r x4, exercise = T}
+```{r x4, exercise =TRUE}
 # Use caret to fit logistic regression
 (caret_glm_model <- train(leave ~ handset_price,
                           method = "glm",
@@ -248,7 +248,7 @@ After that change, the results are identical.
 ```
 
 
-<!-- ```{r x5, exercise = T} -->
+<!-- ```{r x5, exercise =TRUE} -->
 <!-- # Check for missing observations in leave and handset price -->
 <!-- complete.cases(select(m, leave, handset_price)) %>% -->
 <!--   sum == nrow(m) -->
@@ -257,7 +257,7 @@ After that change, the results are identical.
 
 As noted above, it is possible to use linear regression to fit what is known as a "linear probability model." The problem is that the predictions from such a model are often outside the [0, 1] range of response:
 
-```{r x6, exercise = T}
+```{r x6, exercise =TRUE}
 # Fit linear probability model
 lm(ifelse(leave == "LEAVE", 1, 0) ~ ., 
     data = m) %>% 
@@ -283,7 +283,7 @@ Logistic regression estimates a *probability* model of the outcome.  It is a pro
 
 To extract probabilities from a logistic regression model include the `type = "response"` argument to `predict()`; this puts the predictions on the [0, 1] scale of the response. The `predict()` function's default is to return fitted values on the log-odds scale.
 
-```{r x7, exercise = T}
+```{r x7, exercise =TRUE}
 # Inspect fitted values on probability scale
 predict(glm_model, type = "response") %>%  
   head
@@ -292,7 +292,7 @@ predict(glm_model, type = "response") %>%
 
 The syntax for prediction is (unfortunately) different in `caret`. Use `type = "prob"`.
 
-```{r x8, exercise = T}
+```{r x8, exercise =TRUE}
 # Inspect fitted values on probability scale
 predict(caret_glm_model, type = "prob") %>%  
   head
@@ -301,7 +301,7 @@ predict(caret_glm_model, type = "prob") %>%
 
 The output of `predict()` in this case is a two column data frame, in which the sum of the two columns equals 1 for each row. (This is because the two outcomes are mutually exclusive.) To use this data frame for predictions requires choosing the appropriate column, which can be indexed either with square bracket or with column (`$`) notation:
 
-```{r x9, exercise = T}
+```{r x9, exercise =TRUE}
 # Extract probabilities from caret model:
 
 # Method 1
@@ -345,7 +345,7 @@ How should we select the two values of the predictor? It makes sense to select v
 
 Here is code for extracting coefficients directly from the model to calculate the probability associated with this change. 
 
-```{r x10, exercise = T}
+```{r x10, exercise =TRUE}
 # Code for extracting coefficients
 coef(glm_model)
 coef(glm_model)[1]
@@ -355,7 +355,7 @@ coef(glm_model)[2]
 
 Next we define an inverse logit function and use it to calculate how churn probability changes when phone price is increased by \$100.
 
-```{r x10_1, exercise = T}
+```{r x10_1, exercise =TRUE}
 # Define inverse logit function
 inv_logit <- function(x) exp(x) / (1 + exp(x))
 
@@ -375,7 +375,7 @@ Here is an alternative workflow to do the same calculations using a data frame a
 
 1. Set up a two-row data frame with the values of `handset_price` at which you would like to evaluate the probability of churn.  With this method the predictor must be titled exactly the same as in the source dataset.
 
-```{r x11_1, exercise = T}
+```{r x11_1, exercise =TRUE}
 # Set up data frame
 (pred_frame <- data.frame(handset_price = c(mean(m$handset_price), 
                                             mean(m$handset_price) + 100)))
@@ -383,7 +383,7 @@ Here is an alternative workflow to do the same calculations using a data frame a
 
 2. Use this small data frame in the `newdata` argument in the `predict()` function, specifying `type = "response"` to calculate probabilities.
 
-```{r x11_12, exercise = T}
+```{r x11_12, exercise =TRUE}
 # Obtain probabilities 
 predict(glm_model, type = "response", newdata = pred_frame)
 
@@ -391,7 +391,7 @@ predict(glm_model, type = "response", newdata = pred_frame)
 
 3. Calculate the difference in probability.
 
-```{r x11_2, exercise = T}
+```{r x11_2, exercise =TRUE}
 # Find  the difference between the two columns:
 predict(glm_model, type = "response", newdata = pred_frame) %>% 
   diff
@@ -400,7 +400,7 @@ predict(glm_model, type = "response", newdata = pred_frame) %>%
 
 Here is an alternative implementation for the last step:
 
-```{r x11_3, exercise = T}
+```{r x11_3, exercise =TRUE}
 # Calculate the difference in probability:
 predict(glm_model, type = "response", newdata = pred_frame)[2] -
   predict(glm_model, type = "response", newdata = pred_frame)[1]
@@ -417,25 +417,25 @@ This is an important technique to learn.  When using a model for data exploratio
 
 As with the output for `lm()`, the `glm()` function reports a standard error (SE) that represents the uncertainty associated with the point estimate of $\hat\beta$.  (It reflects the idea that, under repeated sampling from the population, we would randomly get varying estimates of $\hat\beta$.) We can use the SE to compute an approximate 95% confidence interval for $\hat\beta$.  
 
-```{r x12, exercise = T}
+```{r x12, exercise =TRUE}
 # Extract the coefficients from the model object
 (estimates <- summary(glm_model)$coefficients)
 
 ```
 
-```{r x12_1, exercise = T}
+```{r x12_1, exercise =TRUE}
 # CI lower bound
 estimates[2,1] - 2 * estimates[2,2]
 
 ```
 
-```{r x12_2, exercise = T}
+```{r x12_2, exercise =TRUE}
 # CI upper bound
 estimates[2,1] + 2 * estimates[2,2]
 
 ```
 
-```{r x12_5, exercise = T, message =F, warning=F}
+```{r x12_5, exercise =TRUE, message =F, warning=F}
 # or, more simply, use the built-in function:
 confint(glm_model)
 
@@ -447,7 +447,7 @@ A 95% confidence interval that includes 0, just as in the case of `lm()`, indica
 
 The `glm()` function uses the normal distribution rather than the t-distribution to calculate p-values.  The reported z-value (which is equivalent to a t-value in linear regression but based on the normal distribution) is a z-score; the coefficient has been standardized by dividing it by the SE:
 
-```{r x13, exercise = T}
+```{r x13, exercise =TRUE}
 # Coefficient
 estimates[2,1] 
 
@@ -461,7 +461,7 @@ estimates[2,1] / estimates[2,2]
 
 The p-value represents the proportion of the null distribution that is equal to or more extreme than the z-value.  We can calculate the p-value independently using the `pnorm()` function and the z-value:
 
-```{r x14, exercise = T}
+```{r x14, exercise =TRUE}
 # Compute p-value
 pnorm(estimates[2,3], lower.tail = F) * 2
 
@@ -499,7 +499,7 @@ The above model fit metrics---null and residual deviance,  along with AIC--- can
 
 One of the most common measures of classification model performance is accuracy, defined as the proportion of  a model's predicted class labels  that are correct (hence ranging from 0 to 1). To calculate accuracy for a logistic regression model we must transform model-predicted probabilities into class labels using what we'll call a "class decision threshold," which is defined as the probability cut-off above which we would predict the event we are modeling.   There is no fixed cut-off; different situations  demand different thresholds, although $p(event) \geq .5$ is a common default threshold.  (For example, `caret` uses .5 when using a probability to predict a binary class label.)  
 
-```{r x15, exercise = T}
+```{r x15, exercise =TRUE}
 # Model predicted probabilities
 predict(glm_model, type = "response") %>% 
   head
@@ -507,7 +507,7 @@ predict(glm_model, type = "response") %>%
 ```
 
 
-```{r x15_5, exercise = T}
+```{r x15_5, exercise =TRUE}
 # Model predicted probabilities converted into class labels using
 # a p(event > .5) decision threshold
 ifelse(predict(glm_model, type = "response") > .5, "LEAVE", "STAY") %>% 
@@ -517,7 +517,7 @@ ifelse(predict(glm_model, type = "response") > .5, "LEAVE", "STAY") %>%
 
 Model accuracy can be calculated once probabilities have been converted to class labels.
 
-```{r x16, exercise = T}
+```{r x16, exercise =TRUE}
 # Calculate the proportion of correctly classified labels
 (ifelse(predict(glm_model, type = "response") >= .5, "LEAVE", "STAY") == m$leave) %>% 
   mean
@@ -555,7 +555,7 @@ The true positive rate, TP / (TP + FN),  or the model's success with the positiv
 
 Here are the actual numbers from the logistic regression model with a class decision threshold of .5:
 
-```{r x17, exercise = T}
+```{r x17, exercise =TRUE}
 # Confusion matrix at decision threshold of prob = .5
 table(predicted = ifelse(predict(glm_model, type = "response") >= .5, "LEAVE", "STAY"),
       observed = factor(m$leave, levels = c("LEAVE","STAY")))
@@ -573,7 +573,7 @@ Notice that we can obtain accuracy from the confusion matrix by summing the diag
 
 Adjusting the class decision threshold will change model performance, measured in terms of overall accuracy and, more specifically,  in terms of the numbers in  the cells of the confusion matrix.   
 
-```{r x18, exercise = T}
+```{r x18, exercise =TRUE}
 # Confusion matrix at decision threshold of prob = .6
 table(predicted = ifelse(predict(glm_model, type = "response") >= .6, "LEAVE", "STAY"),
       observed = factor(m$leave, levels = c("LEAVE","STAY")))
@@ -596,7 +596,7 @@ roc_object <- roc(response = m$leave,
                   predictor = predict(glm_model, type = "response"))
 
 # Plot
-ggroc(roc_object, alpha = 0.5, colour = "red", legacy.axes = T,
+ggroc(roc_object, alpha = 0.5, colour = "red", legacy.axes =TRUE,
       levels = c("STAY","LEAVE")) +
   geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="grey", linetype="dashed") +
   theme_minimal() +
@@ -614,7 +614,7 @@ Details:
 
 Let's explore this curve by experimenting with different thresholds to see the effects on sensitivity and specificity.
 
-```{r x19, exercise = T}
+```{r x19, exercise =TRUE}
 # Confusion matrix at decision threshold of prob = 1
 table(predicted = ifelse(predict(glm_model, type = "response") >= 1, "LEAVE", "STAY"),
       observed = factor(m$leave, levels = c("LEAVE","STAY"))) 
@@ -625,7 +625,7 @@ Here the class decision threshold is 1; the model in this case never predicts th
 
 Here are the calculations at .5:
 
-```{r x20, exercise = T}
+```{r x20, exercise =TRUE}
 # Confusion matrix at decision threshold of prob > .5
 table(predicted = ifelse(predict(glm_model, type = "response") >= .5, "LEAVE", "STAY"),
       observed = factor(m$leave, levels = c("LEAVE","STAY"))) 
@@ -636,7 +636,7 @@ At a probability threshold of .5, TPR will be 947 / (947 + 1521) = .38, while th
 
 Here are the calculations at a probability threshold of .6:
 
-```{r x21, exercise = T}
+```{r x21, exercise =TRUE}
 # Confusion matrix at decision threshold of prob >= .6
 table(predicted = ifelse(predict(glm_model, type = "response") >= .6, "LEAVE", "STAY"),
       observed = factor(m$leave, levels = c("LEAVE","STAY"))) 
@@ -657,7 +657,7 @@ FPRpoint5 <- 683 / (683 + 1843)
   
 roc(m$leave, predict(glm_model, type = "response"),
      levels = c("STAY","LEAVE"))  %>% 
-  ggroc(alpha = 0.5, colour = "red", legacy.axes = T) +
+  ggroc(alpha = 0.5, colour = "red", legacy.axes =TRUE) +
   geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="grey", linetype="dashed") +
   theme_minimal() +
   geom_point(aes(x = FPRpoint6, y =TPRpoint6), col = "red")+
@@ -688,11 +688,11 @@ Remember to remove the ID column before modeling!   Obviously there are many mis
 
 ### Dummy variables
 
-Remember to include the `fullRank = T` argument!
+Remember to include the `fullRank =T` argument!
 
-```{r x21_5, exercise = T, warning=FALSE}
+```{r x21_5, exercise =TRUE, warning=FALSE}
 # Set up dummy frame, remembering to remove id
-dummy_frame <- dummyVars(leave~ ., fullRank = T, data = select(m, -id)) %>% 
+dummy_frame <- dummyVars(leave~ ., fullRank =TRUE, data = select(m, -id)) %>% 
   predict(newdata = m)
 
 # Check that the conversion worked
@@ -707,7 +707,7 @@ dummy_frame %>%
 
 There are two near zero variance predictors identified by `nzv()`. 
 
-```{r x24, exercise = T}
+```{r x24, exercise =TRUE}
 # Check for near zero variance predictors
 nzv(dummy_frame, names = T) 
 
@@ -715,7 +715,7 @@ nzv(dummy_frame, names = T)
 
 `Reported_usage_level.avg` is a dummy variable consisting in mostly 0s. `Overage_charge` also has many 0s. Let's look closer:
 
-```{r x24_1, exercise = T}
+```{r x24_1, exercise =TRUE}
 
 dummy_frame %>% 
   data.frame %>% 
@@ -743,7 +743,7 @@ There is clearly information in these variables. As I noted in the previous tuto
 
 Once all the predictors are numeric, we can use impute missing observations. In this case we are imputing outside of the `train()` function in order to have complete cases for the next (optional) step in the modeling pipeline: finding and removing highly correlated predictors.  
 
-```{r x25, exercise = T}
+```{r x25, exercise =TRUE}
 # Impute missing observations
 dummy_frame <- preProcess(dummy_frame, "medianImpute") %>% 
   predict(newdata = dummy_frame)
@@ -760,7 +760,7 @@ As it turns out, there are no  highly correlated predictors. Note that the cutof
 
 Remember that it is not necessary to  remove correlated predictors if your goal is prediction. the `findCorrelation()` take a correlation matrix as input and outputs one of two variables that have a correlation over the cutoff. 
 
-```{r x26, exercise = T}
+```{r x26, exercise =TRUE}
 # Find correlations
 dummy_frame %>% 
   cor %>% 
@@ -777,7 +777,7 @@ The task now is to fit and compare a variety of models using the `train()` funct
 
 Note: the outcome variable should be a binary factor for caret.
 
-```{r x27, exercise = T, warnings = F, messages = F}
+```{r x27, exercise =TRUE, warnings = F, messages = F}
 # Fit multiple models.  This code is slow to run!
 
 set.seed(123)
@@ -803,7 +803,7 @@ set.seed(123)
 
 Remember that the information `caret` prints to the screen is the cross-validation estimated out-of-sample model performance.  By this measure the glmnet model is only *very slightly* better than the glm model.  Here is a ROC curve displaying the performance of these classifiers in-sample, using all the defaults in the `ggroc()` function:
 
-```{r x28, exercise = T, warning=F, message= F}
+```{r x28, exercise =TRUE, warning=F, message= F}
 # Set up list of ROC objects for different models
 (model_list <- list(glm = roc(m$leave, predict(caret_glm, type = "prob")$LEAVE),
                    glmnet = roc(m$leave, predict(caret_glmnet, type = "prob")$LEAVE),
@@ -824,7 +824,7 @@ The two logistic regression models, regularized and unregularized, are nearly id
 
 Although the performance of the glmnet and glm  models are almost identical, the glmnet  model, in theory, has the advantage of being simpler.   Here are the coefficients  for the final model, which, because  the inputs have been centered and scaled, can be used to assess effect sizes.
 
-```{r x29, exercise = T}
+```{r x29, exercise =TRUE}
 # Extract glmnet coefficients
 coef(caret_glmnet$finalModel, caret_glmnet$finalModel$tuneValue$lambda) %>% 
   round(2)
@@ -844,7 +844,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- The `varImp()` in `caret` is also  handy for comparing predictors. In this case it tells much the same story as the coefficients from the glmnet model. -->
 
-<!-- ```{r x30, exercise = T} -->
+<!-- ```{r x30, exercise =TRUE} -->
 <!-- # Extract variable importance -->
 <!-- varImp(caret_glm) -->
 <!-- varImp(caret_glmnet) -->
@@ -862,7 +862,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- Calculate average `p(LEAVE)` with no policy change. We will use the regularized logistic regression model for this calculation since it has *slightly* better estimated out-of-sample performance than the other models. -->
 
-<!-- ```{r x31, exercise = T} -->
+<!-- ```{r x31, exercise =TRUE} -->
 <!-- # Calculate probability -->
 <!-- (no_policy_change <- predict(caret_glmnet, type = "prob")$LEAVE) %>%  -->
 <!--   mean -->
@@ -875,7 +875,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- The procedure will be to create a new data frame with reduced overage that will then be used to calculate a new probability of churn. Crucially, everything about the data and the model remains exactly the same except the change in overage. This allows us to examine the effect on the predicted probability of churn resulting uniquely from just one change:  80% reduction in overage fees. -->
 
-<!-- ```{r x32, exercise = T} -->
+<!-- ```{r x32, exercise =TRUE} -->
 <!-- # Create new dataset with proposed overage -->
 <!-- new_dummy_frame <- dummy_frame %>%  -->
 <!--   mutate(overage = overage - overage * .8) -->
@@ -892,7 +892,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- Calculate the change in `p(LEAVE)` associated with the new policy. Remember that steps 1 and 2 above have created two vectors of probabilities---one for each customer---so we can examine the *distribution* of differences: -->
 
-<!-- ```{r x33, exercise = T} -->
+<!-- ```{r x33, exercise =TRUE} -->
 <!-- # Subtract probabilities -->
 <!-- (policy_change - no_policy_change) %>%  -->
 <!--   summary -->
@@ -912,7 +912,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- The easiest way to do this is to work with a simplified model, using the largest effect size predictors from the glmnet model.  We will refit the model using `method = glm` and just four predictors: `income`, `overage`, `house`, `handset_price`.  -->
 
-<!-- ```{r x31, exercise = T} -->
+<!-- ```{r x31, exercise =TRUE} -->
 <!-- # Convert to data frame in order to use dplyr select() and  -->
 <!-- # select the four predictors. -->
 <!-- dummy_frame <- data.frame(dummy_frame) %>%  -->
@@ -929,7 +929,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- Next, hold three of these predictors---`income`, `house`, `handset_price`---constant at their means while we vary the predictor of interest, `overage`,  to investigate the relationship between overage and churn in terms of probability.  The procedure is to create a data frame, which we will use as the input to the `newdata` argument in the `predict()` function, with the desired values. The `expand.grid()` function makes it easy to create a data frame with rows for every unique combination of values. -->
 
-<!-- ```{r x32, exercise = T} -->
+<!-- ```{r x32, exercise =TRUE} -->
 <!-- # Create data frame with prediction values -->
 <!-- (prediction_frame <- expand.grid(income = mean(dummy_frame$income), -->
 <!--                                 house = mean(dummy_frame$house), -->
@@ -942,7 +942,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- Add the probability to the data frame above used for prediction: -->
 
-<!-- ```{r x33, exercise = T} -->
+<!-- ```{r x33, exercise =TRUE} -->
 <!-- # Add probabilities -->
 <!-- (prediction_frame <- prediction_frame %>%  -->
 <!--   mutate(probability = predict(new_glm, type = "prob", newdata = prediction_frame)$LEAVE)) -->
@@ -953,7 +953,7 @@ We would obviously want to use non-causal language to describe these relationshi
 
 <!-- Use the predicted probability to help non-technical audiences intuitively understand the relationship between a predictor and an outcome of interest.  If, for example, overage minutes were reduced--- perhaps by a change in company policy--- from the third quartile (200 minutes) to the first (60 minutes), how would that effect the probability of churn? -->
 
-<!-- ```{r x34, exercise = T} -->
+<!-- ```{r x34, exercise =TRUE} -->
 <!-- # Calculate difference in probabilities -->
 <!-- prediction_frame$probability[4] - -->
 <!--    prediction_frame$probability[2] -->
@@ -973,7 +973,7 @@ The method described above for calculating probabilities works well for a *simpl
 
 How would this work exactly in the MegaTelCo example?  First, suppose we would like to understand the effect of `overage` on churn using a multivariable model. Here is the model:
 
-```{r x11_35, exercise = T}
+```{r x11_35, exercise =TRUE}
 summary(caret_glm)
 
 ```
@@ -986,7 +986,7 @@ Here are the steps using R code.  Throughout we will be using the test set to ev
 
 Calculate `p(LEAVE)` for each customer in the test set with no policy change. This is the baseline case.  Remember that because we used the `train()` function to fit the model we need to include the `type = "prob"` argument when using `predict()`.  This produces a data frame with two columns of predicted probabilities on the test set:  one for `LEAVE` and one for `STAY`.  We need to pick out the `LEAVE` column by indexing it appropriately.
 
-```{r x11_4, exercise = T}
+```{r x11_4, exercise =TRUE}
 # Calculate churn probabilities without policy change
 baseline <- predict(caret_glm,  
                     type = "prob")$LEAVE
@@ -996,7 +996,7 @@ head(baseline)
 
 We then *average* these individual probabilities of churn with no policy change to obtain a summary. The model predicts that with existing overage fees 49.1% of  customers will churn, on average.
 
-```{r x11_5, exercise = T}
+```{r x11_5, exercise =TRUE}
 # Average churn probability without policy change
 mean(baseline)
 
@@ -1008,7 +1008,7 @@ mean(baseline)
 
 Calculate `p(LEAVE)` for each customer in the test set after the policy change. The procedure will be to toggle `overage` to the new level and use the model to calculate a new probability of churn. Crucially, everything about the data and the model remains exactly the same except the change in `overage`. This allows us to examine the effect on the predicted probability of churn resulting uniquely from one change:  the proposed reduction in overage fees.  There are different ways of accomplishing this, obviously.  The example below changes `overage` by overwriting the old value with the new one on the fly using `mutate()` within the `predict()` function. The new value, remember, is set by policy to be \$300 lower than the old value.  Customers who were already at 0 will receive a credit of \$300, which will be represented in the data as a negative overage charge. 
 
-```{r x11_6, exercise = T}
+```{r x11_6, exercise =TRUE}
 # Calculate new probabilities with the new data (same model)
 policy_change <- predict(caret_glm,
                          type = "prob",
@@ -1021,7 +1021,7 @@ head(policy_change)
 
 Reducing `overage` will reduce the probability of churn in the test set. Individual probabilities seem to have gone down.  The average probability has gone down substantially.
 
-```{r x11_7, exercise = T}
+```{r x11_7, exercise =TRUE}
 mean(policy_change)
 
 ```
@@ -1030,7 +1030,7 @@ mean(policy_change)
 
 Calculate the *change* in `p(LEAVE)` for customers in the test set associated with the new policy. Remember that steps 1 and 2 above have created two vectors of predicted churn probabilities---one for each customer in the test set---so we can examine the *distribution* of differences:
 
-```{r x11_8, exercise = T}
+```{r x11_8, exercise =TRUE}
 # Subtract probabilities
 (policy_change - baseline) %>%
   summary

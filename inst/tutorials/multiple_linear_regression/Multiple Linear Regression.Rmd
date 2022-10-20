@@ -97,7 +97,7 @@ rescale_data <- data.frame(x1 = x1,
 
 This tutorial focuses on using multiple linear regression to analyze the market response problem we investigated in the last tutorial.  For review, here is a plot of `sales ~ price` with the least squares regression line:
 
-```{r x1, exercise = T}
+```{r x1, exercise = TRUE}
 # Visualize sales ~ price
 ggplot(sales, aes(price, sales)) +
   geom_point() +
@@ -108,7 +108,7 @@ ggplot(sales, aes(price, sales)) +
 
 The plot suggests there is a negative relationship between sales and price.  We tested the slope of that line using simple linear regression and discovered that it *is* statistically significant. However, as we noted, the linear fit was not great. Not only are there bumps in sales in certain price regions that are not well-explained by price alone, but the general relationship between price and sales is more curved than linear.  We can picture this non-linearity using a LOESS (or local regression) curve:
 
-```{r x2, exercise = T}
+```{r x2, exercise = TRUE}
 # Visualize sales ~ price
 ggplot(sales, aes(price, sales)) +
   geom_point() +
@@ -619,7 +619,7 @@ newsales %>%
 
 To get the hang of caret, let's fit a familiar linear regression model. To do so we simply specify the method as "lm."
 
-```{r x25, exercise = T}
+```{r x25, exercise = TRUE}
 # Fit linear model using train()
 (caret_lm <- train(sales ~ price + price2 + display + coupon,
                   data = newsales,
@@ -630,7 +630,7 @@ To get the hang of caret, let's fit a familiar linear regression model. To do so
 
 And here is the same model using `lm()`:
 
-```{r x26, exercise = T}
+```{r x26, exercise = TRUE}
 
 # Identical to lm() results
 lm(sales ~ price + I(price^2) + display + coupon, data = newsales) %>% 
@@ -641,7 +641,7 @@ As you can see, the results are identical.  That's because caret is just providi
 
 In caret, it is trivial to change methods.  However, machine learning methods usually require centered and scaled data, so we'll need to make that change also to fit a KNN regression.  We can accomplish that inside the `train()` function using the `preProcess` argument.  The quadratic term can be omitted since KNN should be able to model non-linearity in the data with out that specific directon.  Here is the model:
 
-```{r echo = T}
+```{r echo = TRUE}
 # Fit knn model using train()
 caret_knn <- train(sales ~ price  + display + coupon,
                   data = newsales,
