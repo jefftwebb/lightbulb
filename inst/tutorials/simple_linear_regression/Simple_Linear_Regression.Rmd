@@ -469,7 +469,7 @@ stat_smooth(data= sample_n(sales, 50), aes(price,sales), geom="line",method = "l
 
 The slopes of these regression lines can be extracted  from the regression output, expressed numerically, and displayed in a density plot with lines added to indicate the lower and upper bounds of the 95% CI.  
 
-```{r twenty echo = F}
+```{r twenty, echo = F}
 slopes <- NULL
 for(i in 1:1000){
   d <- sample_frac(sales, 1, replace = T)
