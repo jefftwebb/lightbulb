@@ -1210,7 +1210,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- ``` -->
 
-<!-- ```{r calc4, exercise =T} -->
+<!-- ```{r calc4, exercise =TRUE} -->
 <!-- # Simulate replacements -->
 <!-- set.seed(123) -->
 <!-- pump_lifespan <- rnorm(n = sims, mean = 61000, sd = 9000) -->
@@ -1225,7 +1225,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- And here is an exact calculation using `pnorm()`: -->
 
-<!-- ```{r calc5, exercise=T} -->
+<!-- ```{r calc5, exercise=TRUE} -->
 <!-- # Calculate replacements using theoretical CDF -->
 <!-- pnorm(q = 50000, mean = 61000, sd = 9000) * 100 -->
 
@@ -1233,7 +1233,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- (b)  What percentage of the company's pumps will fail at exactly 50,000 miles? -->
 
-<!-- ```{r  calc6, exercise=T} -->
+<!-- ```{r  calc6, exercise=TRUE} -->
 <!-- # Estimate p(failure == 50000) -->
 <!-- (pump_lifespan == 50000) %>%  -->
 <!--   mean * 100 -->
@@ -1244,7 +1244,7 @@ rbinom(n = sims, size = 1, prob = .5) %>%
 
 <!-- (c)  What percentage of the company's pumps will fail at mileage between 42,000 and 57,000? -->
 
-<!-- ```{r  calc7, exercise=T} -->
+<!-- ```{r  calc7, exercise=TRUE} -->
 <!-- # Estimate p(replacement) between 42k and 57k -->
 <!-- (pump_lifespan > 42000 & pump_lifespan < 57000) %>%  -->
 <!--   mean * 100 # or -->
