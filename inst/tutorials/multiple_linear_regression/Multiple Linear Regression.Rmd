@@ -122,11 +122,11 @@ Our aim here is to analyze additional factors contributing to sales, and, in doi
 - Multiple predictors
 - Outliers
 - Interactions
-- Log transformation of the outcome
+<!-- - Log transformation of the outcome -->
 - Centering and scaling inputs
 - Polynomial regression
-- Model comparison
-- KNN regression using the `caret` package
+- Model evaluation
+<!-- - KNN regression using the `caret` package -->
 
 ## Fitting the Model
 
@@ -337,11 +337,9 @@ rescale(newsales$price) %>% head
 ```
 
 
-Again, why center and scale?  When input variables are on substantially different scales it can be hard to compare effect sizes, represented in regression coefficients, and effect sizes (rather than p-values) are what we use to reason about relationships in our data. To solve this problem, we need to rescale continuous variables so that unit changes are comparable. Rescaling in the case of price  won't make much difference since the range of the variable is already quite small.  In other cases, it will make a *huge* difference.  
+Again, why center and scale?  When input variables are on substantially different scales it can be hard to compare effect sizes, represented in regression coefficients, and effect sizes (rather than p-values) are what we use to reason about relationships in our data. To solve this problem, we need to rescale continuous variables so that unit changes are comparable. Rescaling in the case of price  won't make much difference since the range of the variable is already quite small.  In other cases, it will make a *huge* difference. 
 
 Here is a made up example to illustrate the point:
-
-
 
 ```{r x14, exercise=TRUE}
 # Look at rescale example data
@@ -379,71 +377,73 @@ When should we *not* center and scale?
 
 Centering and scaling breaks the relationship with the original units.  If the goal is to talk about the effect size of a predictor in terms of the original units---say, dollars or years---then we should leave the inputs unscaled.
 
+Keep in mind that we don't need to center *and* scale, but can center *or* scale, depending on the context. For example, it may be convenient to keep the original scale, but for purposes of interpret ability to center the data to make the intercept interpretable or to make the main effects in an interaction model interpretable, as we'll see below.   
+
 ## Model Improvement
 
-### Log Transformation
+<!-- ### Log Transformation -->
 
-Given the wide range of sales observations, from 11 to 569 (after removing the outlier), we might expect that log transforming  `sales` would improve the model.  Why? Generally speaking, any time the range of the outcome variable is large, or the values are skewed,  log transforming the outcome may improve the model. (While we will sometimes call this a "log model," remember that it remains a *linear* model. Later in the course you will be introduced to logistic regression, which is used to model a binary outcome.  Do not get  "log" confused with "logistic"! These are totally different models.) To appreciate the effect of log transformation it is helpful to look at an example.
+<!-- Given the wide range of sales observations, from 11 to 569 (after removing the outlier), we might expect that log transforming  `sales` would improve the model.  Why? Generally speaking, any time the range of the outcome variable is large, or the values are skewed,  log transforming the outcome may improve the model. (While we will sometimes call this a "log model," remember that it remains a *linear* model. Later in the course you will be introduced to logistic regression, which is used to model a binary outcome.  Do not get  "log" confused with "logistic"! These are totally different models.) To appreciate the effect of log transformation it is helpful to look at an example. -->
 
-Consider this histogram of `sales`.
+<!-- Consider this histogram of `sales`. -->
 
-```{r x16, exercise=TRUE}
-ggplot(newsales, aes(sales)) +
-  geom_histogram() +
-  labs(title = "Histogram of sales") +
-  theme_minimal()
+<!-- ```{r x16, exercise=TRUE} -->
+<!-- ggplot(newsales, aes(sales)) + -->
+<!--   geom_histogram() + -->
+<!--   labs(title = "Histogram of sales") + -->
+<!--   theme_minimal() -->
 
-```
+<!-- ``` -->
 
-The `sales` variable is strongly skewed, even without the outlier.  Let's compute the natural log of `sales` using the `log()` function in R.  Here is a histogram of log sales :
+<!-- The `sales` variable is strongly skewed, even without the outlier.  Let's compute the natural log of `sales` using the `log()` function in R.  Here is a histogram of log sales : -->
 
-```{r x16_1, exercise=TRUE}
-ggplot(newsales, aes(log(sales))) +
-  geom_histogram() +
-  labs(title = "Histogram of log sales") +
-  theme_minimal()
+<!-- ```{r x16_1, exercise=TRUE} -->
+<!-- ggplot(newsales, aes(log(sales))) + -->
+<!--   geom_histogram() + -->
+<!--   labs(title = "Histogram of log sales") + -->
+<!--   theme_minimal() -->
 
-```
+<!-- ``` -->
 
-The log transformation makes a big difference! It compresses the range of the observations and removes the right skew, making the distribution more normal in shape. 
+<!-- The log transformation makes a big difference! It compresses the range of the observations and removes the right skew, making the distribution more normal in shape.  -->
 
-Log transformation will often improve the fit of a linear model.  Why? Think about it this way:  
+<!-- Log transformation will often improve the fit of a linear model.  Why? Think about it this way:   -->
 
-- Your goal in creating a model is to faithfully summarize the data, but outlying observations can frustrate that goal by unduly influencing the model.  Consider a simple data summary like a mean.  If the data are skewed, the mean will be pulled away from the center of the data and will not be very representative. The same thing happens in a linear model when the outcome variable is skewed.
+<!-- - Your goal in creating a model is to faithfully summarize the data, but outlying observations can frustrate that goal by unduly influencing the model.  Consider a simple data summary like a mean.  If the data are skewed, the mean will be pulled away from the center of the data and will not be very representative. The same thing happens in a linear model when the outcome variable is skewed. -->
 
-- If we can make outliers less anomalous with a data transformation then we can reduce their influence and improve the model.  That is the point of log transforming the outcome variable. 
+<!-- - If we can make outliers less anomalous with a data transformation then we can reduce their influence and improve the model.  That is the point of log transforming the outcome variable.  -->
 
-Will log transforming `sales` improve the model? We can answer this question empirically .  Recall that the $R^2$ of the multiple regression model of sales without the outlier was .65.  What is $R^2$ for a model of log `sales`?
-
-
-
-```{r x17, exercise=TRUE}
-(log_multiple <- lm(log(sales) ~ price + coupon + display, 
-                    data = newsales)) %>% 
-  summary
-```
-
-$R^2$ for the log model is also .65, so not much difference. We should double check this result.  These are not nested models---the outcome variable is not the same---so we cannot use `anova()` to compare them statistically. But we could also use other error metrics such as RMSE, which is approximately equivalent to residual standard error. 
-
-However, there are complications. Remember that the fitted values from a log model will be expressed in log transformed units of the outcome variable.  To calculate RMSE, then, we must subtract the model's fitted values from the observed values of the outcome.  To do so we must to re-transform the fitted values from the log model to return them to the same, original scale as the outcome.  Since $e^{log(x)} = x$ we need exponentiate the fitted values for use in the RMSE formula. (In R, raising $e$ to a power, called "exponentiation," is performed with the `exp()` function).
+<!-- Will log transforming `sales` improve the model? We can answer this question empirically .  Recall that the $R^2$ of the multiple regression model of sales without the outlier was .65.  What is $R^2$ for a model of log `sales`? -->
 
 
-```{r x18, exercise=TRUE}
-# Create RMSE function
-rmse <- function(actual, fitted) sqrt(mean((actual - fitted)^2))
 
-# RMSE for log model
-rmse(newsales$sales, exp(fitted(log_multiple)))
+<!-- ```{r x17, exercise=TRUE} -->
+<!-- (log_multiple <- lm(log(sales) ~ price + coupon + display,  -->
+<!--                     data = newsales)) %>%  -->
+<!--   summary -->
+<!-- ``` -->
 
-# RMSE for non-log model
-rmse(newsales$sales, fitted(new_multiple))
-```
+<!-- $R^2$ for the log model is also .65, so not much difference. We should double check this result.  These are not nested models---the outcome variable is not the same---so we cannot use `anova()` to compare them statistically. But we could also use other error metrics such as RMSE, which is approximately equivalent to residual standard error.  -->
 
-This result supports the difference we observed in $R^2$:  log transformation does not improve model fit.  RMSE is lower in the original model. Still, as an illustration, let's interpret the coefficients for the above log model.  Note that it is always possible to leave the coefficients expressed in log units and interpret them as for a model with an unlogged outcome. For example, the coefficient for `price` in the log model, -.85, could be interpreted as the change in log sales associated with one unit increase in price, holding the other predictors constant.  This provides limited insight, however, since the units expressed in log sales are not intuitive. So, how would we make the scale of these coefficients easier to understand?
+<!-- However, there are complications. Remember that the fitted values from a log model will be expressed in log transformed units of the outcome variable.  To calculate RMSE, then, we must subtract the model's fitted values from the observed values of the outcome.  To do so we must to re-transform the fitted values from the log model to return them to the same, original scale as the outcome.  Since $e^{log(x)} = x$ we need exponentiate the fitted values for use in the RMSE formula. (In R, raising $e$ to a power, called "exponentiation," is performed with the `exp()` function). -->
 
-- We need to exponentiate coefficients in a log model to get the percentage increase in the outcome associated with a 1 unit increase in the predictor. Thus, `exp(-.846)` = .4291, which is a 57% decrease compared the baseline of 1: .4291 - 1  = -.57 * 100 = -57%. As a rule of thumb, we can dispense with exponentiation when the coefficient is close to 1 because exponentiating returns a number very close to the original. For example, `exp(.02)` = 1.02, representing a 2% increase over the baseline of 1.  (The calculation goes like this: 1.02 - 1 = .02 * 100 = 2%.) In this example the rule of thumb works well. But it does not work well for a coefficient like `price` which is further from 0, as we saw above.  
 
-How would coefficients in a log-log model, in which *both* the outcome and a predictor had been log transformed, be interpreted?  Mercifully, we don't need to exponentiate.  Instead, we can interpret the coefficient directly as a percentage increase.  Suppose the coefficient for a log transformed predictor in a log-log model was 1.74.  This would mean that each 1% increase in the log predictor is associated with a 1.74% increase in the outcome. 
+<!-- ```{r x18, exercise=TRUE} -->
+<!-- # Create RMSE function -->
+<!-- rmse <- function(actual, fitted) sqrt(mean((actual - fitted)^2)) -->
+
+<!-- # RMSE for log model -->
+<!-- rmse(newsales$sales, exp(fitted(log_multiple))) -->
+
+<!-- # RMSE for non-log model -->
+<!-- rmse(newsales$sales, fitted(new_multiple)) -->
+<!-- ``` -->
+
+<!-- This result supports the difference we observed in $R^2$:  log transformation does not improve model fit.  RMSE is lower in the original model. Still, as an illustration, let's interpret the coefficients for the above log model.  Note that it is always possible to leave the coefficients expressed in log units and interpret them as for a model with an unlogged outcome. For example, the coefficient for `price` in the log model, -.85, could be interpreted as the change in log sales associated with one unit increase in price, holding the other predictors constant.  This provides limited insight, however, since the units expressed in log sales are not intuitive. So, how would we make the scale of these coefficients easier to understand? -->
+
+<!-- - We need to exponentiate coefficients in a log model to get the percentage increase in the outcome associated with a 1 unit increase in the predictor. Thus, `exp(-.846)` = .4291, which is a 57% decrease compared the baseline of 1: .4291 - 1  = -.57 * 100 = -57%. As a rule of thumb, we can dispense with exponentiation when the coefficient is close to 1 because exponentiating returns a number very close to the original. For example, `exp(.02)` = 1.02, representing a 2% increase over the baseline of 1.  (The calculation goes like this: 1.02 - 1 = .02 * 100 = 2%.) In this example the rule of thumb works well. But it does not work well for a coefficient like `price` which is further from 0, as we saw above.   -->
+
+<!-- How would coefficients in a log-log model, in which *both* the outcome and a predictor had been log transformed, be interpreted?  Mercifully, we don't need to exponentiate.  Instead, we can interpret the coefficient directly as a percentage increase.  Suppose the coefficient for a log transformed predictor in a log-log model was 1.74.  This would mean that each 1% increase in the log predictor is associated with a 1.74% increase in the outcome.  -->
 
 ### Polynomial Regression
 
@@ -593,81 +593,85 @@ Interpreting the coefficients is tricky in a model with interactions.
 <!-- - For every one unit increase in `x1`, the regression line for the relationship between `x` and `y` increases by the amount of the coefficient, 15.06. Or, equivalently: -->
 <!-- - For every one unit increase in `x2` the regression line between `x1` and `y` increases by 15.06. -->
 
+## Model Evaluation
 
-## Linear vs. KNN Regression
+How do we know if a model is a good model? Most answers to this question---such as $R^2$ or RMSE---rely on model residuals. Unfortunately, single number summaries of model performance like these depend heavily on context. In some domains, such as the social sciences, the  $R^2$ for models tends to be fairly low. Human behavior is not always well understood, and the constructs being studied may be hard to measure without error. In physics, by contrast, typical regression model $R^2$ is fairly high. 
 
-This module is on multiple linear regression. To understand  a method's  strengths and weaknesses, it helps to compare it to  other methods. In this section I would like to very briefly compare our multiple linear regression model of market response with a K-Nearest Neighbors or KNN regression model. Typically, because linear regression is linear, it tends to struggle with data that includes complicated non-linear relationships.  By contrast machine learning methods such as KNN  regression will often work well with such data. So, let's compare how these different methods perform in modeling sales. For this task, we will use the `caret` package, which simplifies the process of fitting multiple models with different methods. One of the problems in R is that there is no universal user interface  for functions implementing different analytic methods. This can make it hard to iterate between, for example, linear regression and other methods like  random forest or gradient boosting. All of  methods  are implemented in packages with functions that have slightly different syntax. `caret` simplifies this, by supplying consistent user interface  for a large number of modeling functions. "Caret"  stands for **c**lassification **a**nd **re**gression **t**raining;  more information can be found at the [package website](http://topepo.github.io/caret/index.html).
- 
-There is a lot of functionality built into `caret`;  we will just be scratching the surface here. 
- 
-The main function  for fitting models in `caret` is `train()`. Most simply, `train()` requires: a formula argument, a data argument, and a method argument.  It is important to recognize that `caret`  simply repackages existing functions like `lm()` to provide a common interface. Therefore, the results for a linear regression using `caret`  will be identical to the results using `lm()`.  For `caret` we need to create a `price^2` variable and add it to the dataset.
+But in evaluating a model we are not only asking about performance. Additionally, we want to know whether the model is a good fit to the data. Has the model captured all the relevant sources of variability? This question, too, is answered using model residuals, in the form of a residual plot, which compares model residuals with the fitted values.  As the name suggests, residuals contain the information left over---if any---after the model has done its explanatory work. Ideally, a residual plot will show no structure. This is what it *should* look like:
 
-```{r include = F}
-newsales$price2 <- newsales$price * newsales$price
+```{r echo = F}
+n <- 1000
+a <- 2
+b <- 3
+df <- data.frame(x = runif(n))
 
-```
+df$y <- a + b*df$x + rnorm(n)
 
-```{r x24, exercise=TRUE}
-# Create price2
-newsales$price2 <- newsales$price * newsales$price
+model <- lm(y~x, df)
 
-# Check
-newsales %>% 
-  dplyr::select(price, price2) %>% 
-  head
-```
+df$residuals <- df$y - fitted(model)
+df$fitted <- fitted(model)
 
-To get the hang of caret, let's fit a familiar linear regression model. To do so we simply specify the method as "lm."
+ggplot(df, aes(fitted, residuals))+
+  geom_point()+
+geom_smooth(col = 2, se=F)+
+  theme_minimal()+
 
-```{r x25, exercise = TRUE}
-# Fit linear model using train()
-(caret_lm <- train(sales ~ price + price2 + display + coupon,
-                  data = newsales,
-                  method = "lm")) %>% 
-  summary
+  labs(title = "Ideal residual plot")
+  
 
 ```
 
-And here is the same model using `lm()`:
+Formally, one of the assumptions of a linear model is that the residuals are distributed $N(0, \sigma)$.  That is, they should be normally distributed with a mean of 0 and standard deviation of $\sigma$. There is a lot of random variability in this particular plot, but no discernible patterns.  The model has done its job.  Again, this is a judgment that is independent of model $R^2$ or RMSE.
 
-```{r x26, exercise = TRUE}
+We can directly examine whether this assumption has been satisfied by looking at a histogram of the residuals:
 
-# Identical to lm() results
-lm(sales ~ price + I(price^2) + display + coupon, data = newsales) %>% 
-  summary
+```{r echo = F}
+n <- 1000
+a <- 2
+b <- 3
+df <- data.frame(x = runif(n))
+
+df$y <- a + b*df$x + rnorm(n)
+
+model <- lm(y~x, df)
+
+df$residuals <- df$y - fitted(model)
+df$fitted <- fitted(model)
+
+ggplot(df, aes(residuals))+
+  geom_histogram()+
+theme_minimal()+
+  labs(title = "Ideal histogram of residuals")
+```
+Another common way to assess model fit  is to compare fitted values to observed values of the target in a scatterplot:
+
+```{r echo = F}
+n <- 1000
+a <- 2
+b <- 3
+df <- data.frame(x = runif(n))
+
+df$y <- a + b*df$x + rnorm(n)
+
+model <- lm(y~x, df)
+
+df$residuals <- df$y - fitted(model)
+df$fitted <- fitted(model)
+
+ggplot(df, aes(fitted, y))+
+  geom_point()+
+theme_minimal()+
+    geom_smooth(col = 2, se=F)+
+  labs(title = "Ideal fitted vs. actual")
 ```
 
-As you can see, the results are identical.  That's because caret is just providing a wrapper for the base `lm()` function.
+Let's look at an actual regression now.  Here is the model of sales with quadratic price as one of the predictors:
 
-In caret, it is trivial to change methods.  However, machine learning methods usually require centered and scaled data, so we'll need to make that change also to fit a KNN regression.  We can accomplish that inside the `train()` function using the `preProcess` argument.  The quadratic term can be omitted since KNN should be able to model non-linearity in the data with out that specific directon.  Here is the model:
 
-```{r echo = TRUE}
-# Fit knn model using train()
-caret_knn <- train(sales ~ price  + display + coupon,
-                  data = newsales,
-                  preProcess = c("center", "scale"),
-                  method = "knn")
-```
-
-Caret automatically handles a lot of the steps involved in fitting a machine learning model. In this case, it has searched for, and fitted the model with, the optimal value of K, the number of nearest neighbors.  
-
-Is this KNN model better than the linear model? The simplest way to answer this question is to compare models with RMSE:
-
-```{r x28, exercise=TRUE}
-# RMSE for linear model
-rmse(newsales$sales, predict(caret_lm))
-
-#RMSE for KNN model
-rmse(newsales$sales, predict(caret_knn))
-
-```
- 
-The KNN model is slightly better.  Here are plots of the fitted values from the two models for comparison:
-
-```{r echo=F}
+```{r echo = F}
 pd <- newsales %>% 
-  mutate(fitted_knn = predict(caret_knn),
-         fitted_lm = predict(caret_lm))
+  mutate(fitted_lm = predict(caret_lm))
 
 ggplot(pd, aes(price, sales))+
   geom_point()+
@@ -675,14 +679,114 @@ ggplot(pd, aes(price, sales))+
   labs(title = "Linear market response model",
        subtitle= "Fitted values in red")+
   theme_minimal()
-  
+```  
 
-ggplot(pd, aes(price, sales))+
+Clearly, this plot shows that a linear model, if fit properly, can handle *non*-linear data quite well. What does the residual plot look like?
+
+```{r echo = F}
+pd <- newsales %>% 
+  mutate(fitted = predict(caret_lm),
+         residuals = sales - fitted)
+
+ggplot(pd, aes(fitted, residuals)) +
   geom_point()+
-  geom_line(data=pd, aes(price, fitted_knn), col=2)+
-  labs(title = "KNN market response model",
-       subtitle= "Fitted values in red")+
+  geom_smooth(se=F, col = 2)+
+  labs(title = "Residual plot for linear market response model")+
   theme_minimal()
 ```
 
-Clearly, both models capture a great deal of non-linearity in the data. This illustrates that a linear model, if fit properly, can handle *non*-linear data quite well.
+
+There is still structure in these residuals, suggesting that the model could use some work. In this respect the residual plot provides feedback on the quality of the model, beyond just a single number performance summary
+.  
+<!-- ## Linear vs. KNN Regression -->
+
+<!-- This module is on multiple linear regression. To understand  a method's  strengths and weaknesses, it helps to compare it to  other methods. In this section I would like to very briefly compare our multiple linear regression model of market response with a K-Nearest Neighbors or KNN regression model. Typically, because linear regression is linear, it tends to struggle with data that includes complicated non-linear relationships.  By contrast machine learning methods such as KNN  regression will often work well with such data. So, let's compare how these different methods perform in modeling sales. For this task, we will use the `caret` package, which simplifies the process of fitting multiple models with different methods. One of the problems in R is that there is no universal user interface  for functions implementing different analytic methods. This can make it hard to iterate between, for example, linear regression and other methods like  random forest or gradient boosting. All of  methods  are implemented in packages with functions that have slightly different syntax. `caret` simplifies this, by supplying consistent user interface  for a large number of modeling functions. "Caret"  stands for **c**lassification **a**nd **re**gression **t**raining;  more information can be found at the [package website](http://topepo.github.io/caret/index.html). -->
+
+<!-- There is a lot of functionality built into `caret`;  we will just be scratching the surface here.  -->
+
+<!-- The main function  for fitting models in `caret` is `train()`. Most simply, `train()` requires: a formula argument, a data argument, and a method argument.  It is important to recognize that `caret`  simply repackages existing functions like `lm()` to provide a common interface. Therefore, the results for a linear regression using `caret`  will be identical to the results using `lm()`.  For `caret` we need to create a `price^2` variable and add it to the dataset. -->
+
+<!-- ```{r include = F} -->
+<!-- newsales$price2 <- newsales$price * newsales$price -->
+
+<!-- ``` -->
+
+<!-- ```{r x24, exercise=TRUE} -->
+<!-- # Create price2 -->
+<!-- newsales$price2 <- newsales$price * newsales$price -->
+
+<!-- # Check -->
+<!-- newsales %>%  -->
+<!--   dplyr::select(price, price2) %>%  -->
+<!--   head -->
+<!-- ``` -->
+
+<!-- To get the hang of caret, let's fit a familiar linear regression model. To do so we simply specify the method as "lm." -->
+
+<!-- ```{r x25, exercise = TRUE} -->
+<!-- # Fit linear model using train() -->
+<!-- (caret_lm <- train(sales ~ price + price2 + display + coupon, -->
+<!--                   data = newsales, -->
+<!--                   method = "lm")) %>%  -->
+<!--   summary -->
+
+<!-- ``` -->
+
+<!-- And here is the same model using `lm()`: -->
+
+<!-- ```{r x26, exercise = TRUE} -->
+
+<!-- # Identical to lm() results -->
+<!-- lm(sales ~ price + I(price^2) + display + coupon, data = newsales) %>%  -->
+<!--   summary -->
+<!-- ``` -->
+
+<!-- As you can see, the results are identical.  That's because caret is just providing a wrapper for the base `lm()` function. -->
+
+<!-- In caret, it is trivial to change methods.  However, machine learning methods usually require centered and scaled data, so we'll need to make that change also to fit a KNN regression.  We can accomplish that inside the `train()` function using the `preProcess` argument.  The quadratic term can be omitted since KNN should be able to model non-linearity in the data with out that specific directon.  Here is the model: -->
+
+<!-- ```{r echo = TRUE} -->
+<!-- # Fit knn model using train() -->
+<!-- caret_knn <- train(sales ~ price  + display + coupon, -->
+<!--                   data = newsales, -->
+<!--                   preProcess = c("center", "scale"), -->
+<!--                   method = "knn") -->
+<!-- ``` -->
+
+<!-- Caret automatically handles a lot of the steps involved in fitting a machine learning model. In this case, it has searched for, and fitted the model with, the optimal value of K, the number of nearest neighbors.   -->
+
+<!-- Is this KNN model better than the linear model? The simplest way to answer this question is to compare models with RMSE: -->
+
+<!-- ```{r x28, exercise=TRUE} -->
+<!-- # RMSE for linear model -->
+<!-- rmse(newsales$sales, predict(caret_lm)) -->
+
+<!-- #RMSE for KNN model -->
+<!-- rmse(newsales$sales, predict(caret_knn)) -->
+
+<!-- ``` -->
+
+<!-- The KNN model is slightly better.  Here are plots of the fitted values from the two models for comparison: -->
+
+<!-- ```{r echo=F} -->
+<!-- pd <- newsales %>%  -->
+<!--   mutate(fitted_knn = predict(caret_knn), -->
+<!--          fitted_lm = predict(caret_lm)) -->
+
+<!-- ggplot(pd, aes(price, sales))+ -->
+<!--   geom_point()+ -->
+<!--   geom_line(data=pd, aes(price, fitted_lm), col=2)+ -->
+<!--   labs(title = "Linear market response model", -->
+<!--        subtitle= "Fitted values in red")+ -->
+<!--   theme_minimal() -->
+
+
+<!-- ggplot(pd, aes(price, sales))+ -->
+<!--   geom_point()+ -->
+<!--   geom_line(data=pd, aes(price, fitted_knn), col=2)+ -->
+<!--   labs(title = "KNN market response model", -->
+<!--        subtitle= "Fitted values in red")+ -->
+<!--   theme_minimal() -->
+<!-- ``` -->
+
+<!-- Clearly, both models capture a great deal of non-linearity in the data. This illustrates that a linear model, if fit properly, can handle *non*-linear data quite well. -->
