@@ -377,7 +377,7 @@ When should we *not* center and scale?
 
 Centering and scaling breaks the relationship with the original units.  If the goal is to talk about the effect size of a predictor in terms of the original units---say, dollars or years---then we should leave the inputs unscaled.
 
-Keep in mind that we don't need to center *and* scale, but can center *or* scale, depending on the context. For example, it may be convenient to keep the original scale, but for purposes of interpret ability to center the data to make the intercept interpretable or to make the main effects in an interaction model interpretable, as we'll see below.   
+Keep in mind that we don't need to center *and* scale, but can center *or* scale, depending on the context. For example, it may be convenient to keep the original scale, but to center the data to make the intercept interpretable or to make the main effects in an interaction model interpretable, as we'll see below.   
 
 ## Model Improvement
 
