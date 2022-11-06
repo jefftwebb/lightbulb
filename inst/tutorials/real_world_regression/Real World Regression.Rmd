@@ -2,51 +2,68 @@
 title: "Real World Regression"
 output: learnr::tutorial
 runtime: shiny_prerendered
-description: >
-  Learn to deal with real world problems when using linear regression including (but not limited to) missing data and skewed data.
 ---
 
 ```{r setup, include=FALSE}
 library(learnr)
 knitr::opts_chunk$set(echo = FALSE)
-library(ISLR)
 library(tidyverse)
-data("Carseats")
 library(caret)
 library(GGally)
+library(mice)
+library(imputeMissings)
 library(missForest)
-library(glmnet)
+
+
+homes <- read_csv("LAHomes.csv") %>% 
+  mutate(city = case_when(city == "Beverly Hills" ~ "San Francisco",
+                          city == "Santa Monica" ~ "Menlo Park",
+                          city == "Westwood" ~ "Berkeley", TRUE ~ "Oakland"))
 
 set.seed(123)
-c <- prodNA(Carseats, .1)
-c$Sales <- Carseats$Sales
-carseat_model <- lm(Sales ~ ., data = c)
 
-numeric_frame <- dummyVars(Sales ~ ., data = c, fullRank = T) %>% 
-  predict(newdata = c) 
+price <- homes$price
+city <- homes$city
+#homes$bed <- rpois(1594, 3) + 1
+homes$rooms <- homes$bed* 2 + 1 + rbinom(1594, 1, .5)
+#homes$bath <- rpois(1594, 2) +2
+#homes$pool <- pool
+homes <- prodNA(homes, .05)
+homes$spa[c(12,945,677)] <- 1
+homes$price <- price
+homes$city <- city
+
+homes <- homes|>
+  select(-garage)|>
+  mutate(city = factor(city))
+
+complete_homes <- homes %>% 
+  mutate(pool = ifelse(is.na(pool), "N", pool)) %>% 
+  dplyr::select(-spa)
+
+complete_homes <- impute(complete_homes, method = "median/mode")
+
+log_mod <- lm(log(price) ~ city + 
+             sqft + 
+             bed + 
+             bath + 
+             pool, data = complete_homes)
+
+loglog_mod <- lm(log(price) ~ city + 
+             log(sqft) + 
+             bed + 
+             bath + 
+             pool, data = complete_homes)
+
+nolog_mod <- lm(price ~ city + 
+             log(sqft) + 
+             bed + 
+             bath + 
+             pool, data = complete_homes)
 
 
-
-caret_lm <- train(x = numeric_frame,
-                  y = c$Sales,
-                  method = "lm",
-                  preProcess = c("medianImpute"))
-
-set.seed(123)
-imputed <- missForest(xmis = select(c, -Sales))$ximp
-
-
-library(glmnet)
-library(glmnetUtils)
-set.seed(123)
-caret_glmnet <- train(Sales ~ .^2,
-                  method = "glmnet",
-                  preProcess = c("center", "scale"),
-                  data = cbind(Sales = c$Sales, imputed))
 
 ```
-
-
 
 
 ## Introduction
@@ -59,483 +76,452 @@ By "real world regression" I mean to refer to all of the potential complications
 - Non-linear relationships between predictor variables and the target variable.
 - High dimensional data---large numbers of predictors as well as observations---that can cause fitting algorithms to bog down.
 - Complicated models (lots of coefficients) leading to the possibility of overfitting.
-- Many different possible models leading to uncertaintly about which one is best.
+- Many different possible models leading to uncertainty about which one is best.
 - Poorly-defined job tasks requiring educated guesses and critical thinking.
 
-The goal in this tutorial is to  equip you with the skills and example code to handle some of the above challenges. What are those skills?
+The goal in this tutorial is to  equip you with the skills and example code to handle some of the above challenges. 
 
-- Efficiently handling optional pre-processing tasks in the modeling pipeline, such as: 
+<!-- What are those skills? -->
 
-    - Creating dummy variables.
-    - Removing near zero variance predictors and highly correlated variables.
-    - Removing highly correlated predictors.
-    
-- Using cross-validation to estimate out-of-sample model performance and avoid overfitting.
-- Fitting regularized linear models (ridge regression and Lasso) to perform automatic variable selection to create models that do not overfit.
-- Comparing models using the appropirate perfromance metrics.
+<!-- - Removing near zero variance predictors and highly correlated variables. -->
+<!-- - Removing highly correlated predictors. -->
+<!-- - Log transforming variables. -->
+<!-- - Dealing with NAs. -->
+<!-- - Assessing outliers. -->
+<!-- - Choosing predictors. -->
+<!-- - Comparing models using the appropriate performance metrics. -->
 
-Ultimately, the purpose of this tutorial is to provide you with a functional workflow for modeling using the `caret` package that you can use for the final project.
+<!-- ## Caret Package -->
 
-## Caret Package
+<!-- The [caret](http://topepo.github.io/caret/index.html) package is an important tool for real world regression.  You were introduced to the package in the previous module.  Here we cover more advanced uses of `caret` to simplify your modeling workflow.  New tools are currently being developed to preprocess data and fit multiple models easily in R, but for now `caret` is among the best tools available for quickly fitting and comparing a wide variety of models. Peruse the large list of methods available in `caret` here:  [available models](http://topepo.github.io/caret/available-models.html). -->
 
-The [caret](http://topepo.github.io/caret/index.html) package is an important tool for real world regression.  You were introduced to the package in the previous module.  Here we cover more advanced uses of `caret` to simplify your modeling workflow.  New tools are currently being developed to preprocess data and fit multiple models easily in R, but for now `caret` is among the best tools available for quickly fitting and comparing a wide variety of models. Peruse the large list of methods available in `caret` here:  [available models](http://topepo.github.io/caret/available-models.html).
+<!-- As we've seen, the workhorse function in `caret` is `train()` which serves as a wrapper for the above methods.  The methods implemented in `train()` are all borrowed from other packages; `caret` merely creates a standardized user interface (UI) for the fitting functions.  Take `lm()` as an example. When we use `train()` to do linear regression, the `lm()` function is doing the work, but the UI is the same as we would use for any other model. This solves a major irritation in the R modeling ecosystem:  idiosyncratic model syntax.   Here are some of the other nice features in `caret`: -->
 
-As we've seen, the workhorse function in `caret` is `train()` which serves as a wrapper for the above methods.  The methods implemented in `train()` are all borrowed from other packages; `caret` merely creates a standardized user interface (UI) for the fitting functions.  Take `lm()` as an example. When we use `train()` to do linear regression, the `lm()` function is doing the work, but the UI is the same as we would use for any other model. This solves a major irritation in the R modeling ecosystem:  idiosyncratic model syntax.   Here are some of the other nice features in `caret`:
+<!-- - The standardized UI in `caret` makes it easy to rapidly iterate between models to compare performance and do model selection.  Some algorithmic methods will definitely produce better results than others; `caret` allows rapid exploration of the model space to find the best-performing method. -->
 
-- The standardized UI in `caret` makes it easy to rapidly iterate between models to compare performance and do model selection.  Some algorithmic methods will definitely produce better results than others; `caret` allows rapid exploration of the model space to find the best-performing method.
+<!-- - `caret` automatically handles cross-validation.  In fact, the output printed to the screen  after running the `train()` function supplies metrics on the model's  *estimated out-of-sample  performance*.  This should not be confused with the model's in-sample performance! More on that below. -->
 
-- `caret` automatically handles cross-validation.  In fact, the output printed to the screen  after running the `train()` function supplies metrics on the model's  *estimated out-of-sample  performance*.  This should not be confused with the model's in-sample performance! More on that below.
+<!-- - The package  also  greatly streamlines and simplifies the pre-processing pipeline for machine learning, making it easy to create test and train sets, make dummy variables, remove near zero variance  and highly correlated predictors, and do imputation for missing data. -->
 
-- The package  also  greatly streamlines and simplifies the pre-processing pipeline for machine learning, making it easy to create test and train sets, make dummy variables, remove near zero variance  and highly correlated predictors, and do imputation for missing data.
+##  Predicting Home Sale Price
 
-##  Predicting Sales
+As an example, we will use data similar to what you worked with for the PacDev case, but  exhibiting more real world characteristics, with---among other problems---missing observations and non-linearity.  Here is the data dictionary:  
 
-As an example, we will use a dataset from the `ISLR` package: `Carseats`.  This is a simulated dataset containing sales of child car seats at 400 different stores.  The data is aggregated to the store level (there is 1 row per store), and includes the following 11 variables:
 
-- Sales: Unit sales (in thousands) at each location.
-- CompPrice: Price charged by competitor at each location.
-- Income: Community income level (in thousands of dollars).
-- Advertising: Local advertising budget for company at each location (in thousands of dollars).
-- Population: Population size in region (in thousands).
-- Price: Price company charges for car seats at each site.
-- ShelveLoc: A factor with levels Bad, Good and Medium indicating the quality of the shelving location for the car seats at each site.
-- Age: Average age of the local population.
-- Education: Education level at each location.
-- Urban: A factor with levels No and Yes to indicate whether the store is in an urban or rural location.
-- US: A factor with levels No and Yes to indicate whether the store is in the US or not.
+Each row represents sales information on a single family home in the Bay Area.
+
+- `city` [fcr]: home location.
+- `bed` [num]: number of bedrooms.
+- `bath` [num]: number of baths.
+- `garage` [fcr]: size of garage in cars. 
+- `sqft` [num]: size of home.
+- `pool` [fcr]: indicator for whether the home has a pool.  
+- `spa` [num]: indicator for whether the home has a spa.  
+- `rooms` [num]: number of rooms.
+- `price` [num]: home sales price. 
 
 To get started, take a look at the data:
 
 ```{r x1, exercise = TRUE}
-summary(Carseats) 
-glimpse(Carseats)
+summary(homes) 
+
 ```
-
-Three of the variables are factors, while the rest are numeric. Currently there  are no missing observations. 
-
-However, since a common feature of real-world data is missing data, represented by `NA`, I have, for purposes of illustration,  randomly removed some observations in a version of the data set, `c`. Here is the version of the data with missing observations:
-
-
 
 ```{r x2, exercise = TRUE}
-# Summarize dataset with missing observations
-summary(c)
+glimpse(homes)
 ```
+
+Three of the variables are factor variables, while the rest are numeric. There is quite a bit of missing data, which we need to address before modeling. 
+
+## Near zero variance predictors
+
+The `caret` package includes a function, `nzv()` (for "near zero variance"), that will identify the columns in a data frame with little or no variation.  
+
+Zero variance predictors contain no information at all---an example would be a constant. By definition, these predictors add nothing to a regression model and should be removed. In fact, the least squares algorithm will not be able to estimate a coefficient for a zero variance predictor. 
+
+Near zero variance predictors contain a little information. Should near zero variance predictors be removed? Not necessarily. In fact, I would recommend not automatically eliminating such variables. A little information is better than none. And including weak predictors in a linear regression model will typically not cause problems.
+
+When might you want to remove near zero variance predictors? Here are some considerations:
+
+- Sometimes you need an excuse to reduce the dimensionality of your data by removing predictors. Either the predictor set is large, which causes the estimation algorithm to bog down, or there are more predictors than instances (rows), in which case an algorithm like OLS regression will not work. Removing predictors is the only option in the latter case, and a good option in the former case.
+
+- Low variance predictors, if they contain a few large outliers, can sometimes produce unrealistic coefficients and standard errors in linear regression.
+
+<!-- Cross-validation procedures will run into trouble with near zero variance predictors because, after dividing the data into folds, some of the predictors will end up with zero variance. When this happens caret will produce a scary warning in red letters: “prediction from a rank-deficient fit may be misleading.” Keep in mind, however, that this is just a warning (at the worst it might affect the reliability of caret’s cross-validation estimates of the model’s out-of-sample performance) and is not by itself as reason to remove predictors. -->
+
+For reference, here is a quick example of how to use `nzv()`:
+
+```{r x3, exercise = TRUE}
+nzv(homes, names = T)
+
+```
+
+This result tells us that all the columns in this dataset except `pool` and `spa` have enough variance to function as useful predictors. Here is how you would remove near zero variance variables using `nzv()`: `new_data <- data[, -nzv(data)]`.
+
 
 ## Missing Data
 
-The number of NAs in this new dataset is relatively modest---approximately 10% of every variable is missing, with the exception of the outcome variable, `Sales`, which has no NAs.  However, the proportion of missing observations in the entire data set will be much, much higher for regression modeling purposes, since `lm()` will use only complete cases---rows with no missing observations. How many complete cases are there? 
+If the missing observations are missing at random (MAR)  or  missing completely at random (MCAR), we could just remove the rows with NAs.  Why?  If the missings are indeed random, then removing them should not alter the general pattern of relationships in the data.  But if the number of missing observations is large, as here, then using only the complete cases can create problems:  we might encounter the problem of not having enough data to create a reliable model, particularly if some of the variables don't have much variation.   
 
-```{r x3, exercise = TRUE}
-# Count complete cases
-na.omit(c) %>% 
-  nrow
+The solution in such situations is to *impute the missing observations*, which means to make an educated guess about the  probable values of the NAs---what they would have been were they not missing. 
 
-```
-
-The percentage of rows with missing observations is well over 50%.  What should we do?  
-
-If the missing observations are missing at random (MAR)  or, as in this simulated case, missing completely at random (MCAR), we could just remove the rows with NAs.  Why?  If the missings are indeed random, then removing them should not alter the general pattern of relationships in the data.  But if the number of missing observations is large, as here, then using only the complete cases can create problems:  we can quickly run into  the problem of not having enough data to create a reliable model, particularly if some of the variables don't have much variation.   The solution in such situations is to *impute the missing observations*, which means to make an educated guess about the  probable values of the NAs---what they would have been were they not missing. 
-
-Note that NA can mean different things for different datasets.  Read the data dictionary carefully!  For example, in the housing price dataset you are analyzing for the final project, NA is used to represent observations that are missing because the home feature is missing. In this case NAs do not represent genuinely missing observations and it would therefore be a mistake to impute the NAs with an algorithm! But something must be done because (1) the NAs are not random and (2) `lm()` would automatically remove most of the rows, making the dataset too small for reliable modeling. The solution is to replace the NAs with a string variable that `lm()` will treat as a level in a factor variable. For example, an NA in `Alley` might become "no alley."
-
-How do you know when to impute genuinely missing observations rather than removing the entire row? The short answer is: you don't. You must use your judgment.  If there are just a few missing observations---remove those rows. That is the most convenient thing to do and should not impact results.  But if the missing observations are more than 10-20% of the data set (though this is a *very rough*, ballparky guideline), and if there are large numbers of predictors, and you are including interactions, then you should consider imputation simply in the interest of data preservation.
-
-There are many packages available in R to do imputation.  Most of them are fiddly.  One that is fairly straightforward to use is the `missForest` package, which does imputation using a multivariable random forest model. This package implements what is known as "single imputation"  because it produces just a single complete data set. Single imputation is what we need when doing prediction.  (You will also see references to "multiple imputation," which is the go-to method for inference but won't work---at least not as designed---for prediction.)  `missForest` works well for modest amounts of imputation, but, unfortunately, is extremely time-consuming for large data sets. The upside of this package---that it does multivariable imputation, using information from all the other variables, and is therefore arguably more accurate than alternatives---is also its downside: it is slow, sometimes impossibly so.  Below is an example for how to use missForest.
-
-What are the alternatives?  *Median imputation.* `caret`  will conveniently do median imputation within the `train()` function, while fitting a model. (It will do other sorts of imputation as well, but these also suffer from the problem mentioned above:  slowness.) Median imputation is a good choice when there are many missing observations and the number of predictors is large. However, the price we pay for speed is---perhaps---accuracy:  the method uses no information from other variables but instead simply uses the median in any given column to replace missing values.  Why use the median and not the mean?  The median is less sensitive to outliers, and should be very close to the mean when there are no outliers.  
-
-Imputing missing data is a step in what we will call the *modeling workflow* or *modeling pipeline*.  
-
-## Modeling Pipeline with `caret`
-
-Following an order in pre-processing and modeling steps can make a huge difference in efficiency. Here is a possible workflow.  Note that some of these steps, depending on the modeling scenario, are optional.
- 
-1. Clean the data. As we've seen, this entails, at a minimum, removing data that is logically impossible or obviously the result of a data collection error.
-2. Make all predictors numeric.  This is an optional step that involves  dummy coding the categorical  variables. 
-3. Consider removing predictors that contain little information, known as zero variance or near zero variance variables. This is an optional step.
-4. Consider removing highly correlated variables. This is an optional step that depends on your modeling objective.  Highly correlated predictors---known as multicollinearity---can make it difficult to use a model for inference, since correlated predictors will tend to have inflated standard errors.  Note that multicollnearity should not affect predictive accuracy.
-5. Deal with missing observations. If using the `caret` package, imputation can be done while fitting the model.
-6. Fit multiple models and compare estimated out-of-sample error metrics. 
-
-Note that steps 2 - 5 are covered in [chapter 3](http://topepo.github.io/caret/pre-processing.html) of the  documentation for  `caret`. 
-
-### Make all predictors numeric
-
-
-Why bother with dummy coding? When using linear regression there is one main reason: to impute missing data with medians. Your data needs to be numeric because only numeric variables have medians. As I've noted, imputing with medians is a fast method that scales well to large datasets. 
-
-If you will be using a different imputation method, or not doing imputation at all, then *it is not necessary to dummy code your data*---at least not when doing linear regression. Note that some machine learning algorithms, by contrast, do require all numeric predictors.
-
-What are dummy variables?  From the previous tutorial:
-
->Dummy variables are coded 0/1 to represent the absence or presence of a categorical effect.  If the categorical effect has just two levels then one column, as here, will suffice; but with more levels we need more columns---equal to the number of factor levels minus one. If there were three possible categorical values, for example, then we would need  two dummy variable columns.  Having a column for *every* level of a variable---say, two columns for `display`---would be redundant, since all the information is included in just one column. Trying to use a column for every level creates what is known as the *dummy variable trap*, and will create problems for linear regression. (Representing categorical variables with dummy variables is also known as "one-hot encoding.")
-
-
-Dummy coding categorical variables to obtain an entirely numeric predictor set is not an exotic procedure.  In fact, this is precisely what`lm()` function does automatically in the background prior to fitting.  The so-called "model matrix," automatically produced by `lm()`, consisting of an entirely numeric predictor set, can be extracted from the model object using the `model.matrix()` command.  Observe:
+Note that NA can mean different things for different datasets.  Read the data dictionary carefully!  Sometimes you don't need to impute NAs but to replace them with appropriate values.  For example, the `Alley` column in the Ames Housing dataset is 90% NAs.  The data dictionary informs us that NA  means the home has no alley. Thus, NA does not represent missing information in this case, but a *missing feature* of the home. In this case we can confidently replace NA with "none." In this dataset, the NAs in `pool` also seem to mean "none" since the only recorded observations are `Y`. And the extent of missing observations in `spa`---1591---combined with the fact that the only recorded values are `1`, means that this variable contains no information. 
 
 ```{r x4, exercise = TRUE}
-# Fit a model of Sales with all predictors
-carseat_model <- lm(Sales ~ ., data = c) 
+unique(homes$spa)
+```
 
-# Extract the top 6 rows of the model matrix
-model.matrix(carseat_model) %>% 
-  head
+`spa` can be removed without consequence. Let's make these changes now and calculate the complete cases:
+
+```{r x6, exercise = TRUE}
+homes <- homes %>% 
+  mutate(pool = ifelse(is.na(pool), "N", pool),
+         pool = factor(pool)) %>% 
+  select(-spa)
+
+sum(complete.cases(homes))
+```
+
+The `lm()` function will automatically remove rows with missing observations, so in this case the functional size of the dataset for regression modeling is much smaller than it seems at first. 
+
+How do you know when to impute genuinely missing observations rather than removing the entire row? The short answer is: you don't. You must use your judgment.  If there are just a few missing observations then remove those rows. That is the most convenient thing to do and should not impact results.  But if the missing observations are more than 10-20% of the data set (though this is a *very rough*, ballparky guideline), and if there are large numbers of predictors, and you are including interactions, then you should consider imputation simply in the interest of data preservation. (One caveat is that if the NAs are too extensive then the columns won't contain very much information and imputation won't be very reliable.  In such cases consider starting over with data collection. )
+
+The imputation approach you use will in part depend on your modeling goal. For example, if your goal is inference---that is, if you are most interested in interpreting model coefficients to reason about causal relationships---then you should use *multiple imputation*.  This method creates multiple datasets representing different possibilities for the imputed values. It ensures that the uncertainty inherent in guessing unknown values makes its way appropriately into the standard errors for the model coefficients. If, on the other hand, you need to impute a single value in order to have a complete test set for prediction then you should use *single imputation.*
+
+There are many packages available in R to do imputation.  Most of them are fiddly.  One that is  straightforward to use single imputation is the `imputeMissings` package, which offers several imputation methods, the fastest and simplest of which is imputation with medians (for numeric data) or the mode (for categorical data) using the `impute()` function. 
+
+```{r x7, exercise = TRUE}
+complete_homes <- impute(homes, method = "median/mode") 
+```
+
+Did it work?
+
+```{r x8, exercise = TRUE}
+na.omit(complete_homes) %>% 
+  nrow()
 
 ```
 
+Yes. That was pretty simple. 
 
-Notice that all of these columns are numeric. The number of dummy variables for a given factor variable is, appropriately, one less than the number of factor levels.  For example, there are just two columns to represent three `ShelveLoc` levels:  Bad, Medium, and Good.  We could actually go ahead and fit the model using the model matrix, minus the `intercept` column, and get precisely the same model as we would when fitting the model with the original dataset.  However, I would recommend using `caret` for dummy coding, which provides a function to create dummy variables, `dummyVars()`, that offers more convenience (better handling of NAs) than `model.matrix()`.  It is used as follows:
+What about multiple imputation? Because the point of multiple imputation is to get accurate standard errors for model coefficients, in the presence of missing data, this method is typically used in conjunction with a fitted model. We will demonstrate with the `mice` package. Here is an example workflow:
 
+```{r include=FALSE}
+homes <- homes %>% 
+  mutate(pool = ifelse(is.na(pool), "N", pool),
+         pool = factor(pool)) %>% 
+  select(-spa)
+```
 
+```{r warning=FALSE, echo = T}
 
-```{r x4-5, exercise = TRUE}
-# Create dummy variables
-dummies <- dummyVars(Sales ~ ., data = c, fullRank = T) 
-
-numeric_frame <- predict(dummies, newdata = c)
-
-# or, putting the two steps together into one code chunk
-numeric_frame <- dummyVars(Sales ~ ., data = c, fullRank = T) %>% 
-  predict(newdata = c) 
-
-head(numeric_frame)
+mice_data <- mice(homes , m = 5,  meth = "rf", seed = 123, printFlag = F)
 
 ```
 
-Notice:
+Here are the elements in the above line of code.
 
-1. `dummyVars()` has produced exactly the same predictor matrix as `lm()`, minus the intercept column.
-2. The first argument to `dummyVars()` is a model formula: `y ~ x`.  Conveniently, any tricks available for specifying a model in `lm()` can be used also with `dummyVars()`.  
-3. We use `fullRank = T` as an argument to `dummVars()` to return the appropriate number of dummy variables (the number of factor levels or categories minus 1) and thereby avoid the dummy variable trap in modeling described above. Other than that, the arguments to `dummyVars()` are identical to `lm()`.
-4. To obtain the numeric predictor matrix from `dummyVars()` requires using the resulting output as an input to the `predict()` function, with the original dataset specified in the `newdata` argument.
+- `mice()` is the function used to create mutliple imputed datasets.
+- `m` specifies the number of imputed datasets.
+- `meth` is the imputation method used; `rf` stands for "random forest."
+- `seed` is the random seed for reproducibility.
+- `printFlag = F` suppresses verbose output.
 
-### Remove near zero variance predictors
+We now use the imputed datasets to fit the regression model, as follows:
 
-`caret` includes a function, `nzv()` (for "near zero variance"), that will identify the columns in a data frame with little variation that consequently contain little or no information.  We need to distinguish *near zero variance* predictors from *zero variance* predictors. The latter contain *no* information---an example would be a constant.  By definition, these predictors add nothing to a regression model and should be removed. In fact, the least squares algorithm will not be able to estimate a coefficient for a zero variance predictor.
-
-Should near zero variance predictors be removed?  Not necessarily. In fact, I would recommend not automatically eliminating such variables. A little information is better than none!  And including weak predictors in a linear regression model will typically not cause problems.
-
-When might you want to remove near zero variance predictors?  Here are some considerations:
-
-- Sometimes you need an excuse to reduce the dimensionality of your data by removing predictors.  Either the predictor set is large, which causes the estimation algorithm to bog down, or there are more predictors than instances (rows), in which case an algorithm like OLS regression will not work. Removing predictors is the only option in the latter case, and a good option in the former case.
-
-- Low variance predictors, if they contain a few large outliers, can sometimes produce unrealistic coefficients and standard errors in linear regression. 
-
-- Cross-validation procedures will run into trouble with near zero variance predictors because, after dividing the data into folds, some of the predictors will end up with zero variance. When this happens `caret` will produce a scary warning in red letters:  "prediction from a rank-deficient fit may be misleading."  Keep in mind, however, that this is just a warning (at the worst it might affect the reliability of `caret`'s cross-validation estimates of the model's out-of-sample performance) and is not by itself as reason to remove predictors.
-
-These considerations don't really apply to the final project, since that data is modestly sized and the goal is prediction.  For reference, here is a quick example of how to use `nzv()`:  
-
-```{r x5, exercise = TRUE}
-# Find nzv predictors
-nzv(numeric_frame)
+```{r echo = T}
+model <- with(mice_data, lm(price ~ city + bed + bath + sqft + rooms + pool))
+summary(pool(model))
 
 ```
 
-This result tells us that all the columns in this dataset have enough variance to function as useful predictors---none are near zero variance.  Suppose that there were some near zero variance variables.  You could remove them like this, assigning the result to a new object:  `new_data <- numeric_frame[, -nzv(numeric_frame)]`.  
+The `with()` function signals to `mice` to fit multiple models, using the `m` number of imputed datasets, the results of which must then be combined and averaged with `pool()`.  
 
+For convenience going forward we will use the dataset imputed above with single imputation.
 
+However, something seems wrong with this model.  The baseline city is Berkeley.  A simple data summary shows that homes in San Francisco should not be worth less. The sign on the coefficient for San Francisco seems wrong.
 
-
-
-<!-- For purposes of illustration, let's create a numeric predictor matrix with all 2-way interactions and check for near zero variance. (Note: including interactions like this will not necessarily produce a good model.  We will check whether such a model is overfitting later.) To create a dummy set with all 2-way interactions using `dummyVars()` we use exactly the same shorthand notation that we would have used with `lm()`:  a period to include all the predictors, then `^2` to include automatically (without excessive typing) all of the possible 2-way interactions: -->
-
-<!-- ```{r include = F} -->
-<!-- expanded_frame <- dummyVars(Sales ~ .^2, data = c, fullRank = T) %>%  -->
-<!--   predict(newdata = c) -->
-
-<!-- ``` -->
-
-<!-- ```{r x6, exercise = TRUE} -->
-<!-- # Create dummy variables for all 2-way interactions -->
-<!-- expanded_frame <- dummyVars(Sales ~ .^2, data = c, fullRank = T) %>%  -->
-<!--   predict(newdata = c) -->
-
-<!-- # What are the dimensions of this expanded dummy set? -->
-<!-- dim(expanded_frame) -->
-
-<!-- # How many complete cases? -->
-<!-- na.omit(expanded_frame) %>%  -->
-<!--   nrow -->
-
-<!-- ``` -->
-
-<!-- We now have 65 numeric predictors, with just 144 complete cases in the data.  This will work.  (The OLS algorithm will not work at all when the number of predictors is larger than the number of observations.)  However, there may not be much information in these columns.  How many of these new columns have near zero variance? -->
-
-<!-- ```{r x7, exercise = TRUE} -->
-<!-- # Check for near zero variance predictors -->
-<!-- nzv(expanded_frame) -->
-
-<!-- ``` -->
-
-<!-- There are three columns with predictors that have little or no variation.  We would use `nzv()` as follows to remove the identified columns: -->
-
-<!-- ```{r include = F} -->
-
-<!-- new_frame <- expanded_frame[, -nzv(expanded_frame)] -->
-
-<!-- ``` -->
-
-<!-- ```{r x8, exercise = TRUE} -->
-<!-- # Remove nzv predictors -->
-<!-- new_frame <- expanded_frame[, -nzv(expanded_frame)] -->
-
-<!-- dim(new_frame) -->
-
-
-<!-- ``` -->
-
-<!-- How would you assess whether the new predictor set, without near zero variance variables, was an improvement? With cross-validation. The question to ask is whether deleting those variables improves the model's out-of-sample performance.  Note that whenever you fit a model with caret, the information automatically printed to the screen is the cross-validation estimate of the model's out-of-sample performance. -->
-
-<!-- By default, `caret` uses bootstrap cross-validation.  This consists in taking a bootstrap sample of the data, fitting the model using that sample, and then testing the model on the observations that were not selected in the bootstrap sample. `caret`  repeats this procedure 25 times, calculating performance metrics for the model fitted to each bootstrap sample.  The numbers automatically printed to the screen after the model has run are the averaged  performance metrics across all samples. Thus, the resulting `Rsquared`  metric is our best guess, using cross-validation, for how the model will perform on new data. -->
-
-
-
-<!-- ```{r x8.5, exercise = TRUE} -->
-<!-- # Model all the data -->
-<!-- set.seed(123) -->
-<!-- train(y = c$Sales, -->
-<!--       x = expanded_frame, -->
-<!--       method = "lm") -->
-
-<!-- ``` -->
-
-
-<!-- ```{r x8.75, exercise = TRUE} -->
-<!-- # Model with nzv variables removed -->
-<!-- set.seed(123) -->
-<!-- train(y = c$Sales, -->
-<!--       x = new_frame, -->
-<!--       method = "lm") -->
-
-<!-- ``` -->
-
-<!-- It does.  Removing the near zero variance predictors seems to improve the model's out-of-sample performance slightly. In other cases it won't improve performance, however, so you need to check. -->
-
-### Remove correlated predictors
-
-Highly correlated predictors add noise to a regression model without adding information, and can inflate standard errors, which is a problem if your goal is inference.  This is called multicollinearity.  The solution is to remove one of the correlated variables.  Check out the `caret` documentation, [Chapter 3.3](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictors), for information on how to do this using `caret` functions.  I will not go through these procedures here, since we will shortly be discussing regularized models---Lasso and ridge, as implemented in the `glmnet` package---and one of the virtues of these models is to remove non-informative predictors, including correlated predictors.   Also, our objective here is to demonstrate methods that will be applicable to the final project, which is a prediction problem.  Multicollinearity is a problem for inference not prediction.
-
-### Imputation with medians
-
-Now that we have an entirely numeric predictor frame, we can use the `train()` function to simultaneously fit the model and impute missings with variable medians.  Remember that `train()` has, among others, the following arguments:
-
-- `x`:  the numeric predictor matrix.
-- `y`: the outcome variable. `caret` will also fit a model using model formula syntax (`y ~ x`), but in this case it is convenient to explicitly define the `x` and `y` arguments.
-- `data`:  not needed given that we are including the data explicitly in the `x` and `y` arguments.
-- `method`: for example, "lm" for a linear model, "knn" for a K-Nearest Neighbors (KNN) model, "glmnet" for a regularized model that combines Lasso and ridge models.
-- `preProcess`: defines the pre-processing steps, such as "center," "scale," and "medianImpute." Note that we can use `medianImpute` in this case because we made the predictors  numeric by dummy coding them.
-
-Here is the code for fitting a linear model in `caret` and imputing missing observations with medians:
-
-
-
-
-```{r x9, exercise = TRUE, warnings = F, message=F}
-# Fit linear model
-(caret_lm <- train(x = numeric_frame,
-                  y = c$Sales,
-                  method = "lm",
-                  preProcess = c("medianImpute")))
-
+```{r x3_1, exercise = TRUE}
+complete_homes %>%
+  group_by(city) %>%
+  summarize(avg_price = mean(price)) %>%
+  arrange(avg_price)
 ```
 
-By default, `caret` uses bootstrap cross-validation.  This consists in taking a bootstrap sample of the data, fitting the model using that sample, and then testing the model on the observations that were not selected in the bootstrap sample. `caret`  repeats this procedure 25 times, calculating performance metrics for the model fitted to each bootstrap sample.  The numbers automatically printed to the screen after the model has run are the averaged  performance metrics across all samples. Thus, the resulting `Rsquared`  metric is our best guess, using cross-validation, for how the model will perform on new data.
+What is going wrong?
 
-This bears repeating:  The information `caret` automatically printed to the screen **is not the model's in-sample performance!**  *It is a cross-validation estimate of the model's out-of-sample performance.*  (Note: because cross-validation involves random sampling, the estimated out-of-sample performance will change slightly every time the model is run.) To get the in-sample performance we simply run a summary of the model object:
+<!-- using `pool()`which then must be  -->
+<!-- This package implements what is known as "single imputation"  because it produces just a single complete data set. Single imputation is what we need when doing prediction.  (You will also see references to "multiple imputation," which is the go-to method for inference but won't work---at least not as designed---for prediction.)  `missForest` works well for modest amounts of imputation, but, unfortunately, is extremely time-consuming for large data sets. The upside of this package---that it does multivariable imputation, using information from all the other variables, and is therefore arguably more accurate than alternatives---is also its downside: it is slow, sometimes impossibly so.  Below is an example for how to use missForest. -->
+
+<!-- What are the alternatives?  *Median imputation.* `caret`  will conveniently do median imputation within the `train()` function, while fitting a model. (It will do other sorts of imputation as well, but these also suffer from the problem mentioned above:  slowness.) Median imputation is a good choice when there are many missing observations and the number of predictors is large. However, the price we pay for speed is---perhaps---accuracy:  the method uses no information from other variables but instead simply uses the median in any given column to replace missing values.  Why use the median and not the mean?  The median is less sensitive to outliers, and should be very close to the mean when there are no outliers.   -->
+
+<!-- Imputing missing data is a step in what we will call the *modeling workflow* or *modeling pipeline*.   -->
+
+<!-- ## Modeling Pipeline with `caret` -->
+
+<!-- Following an order in pre-processing and modeling steps can make a huge difference in efficiency. Here is a possible workflow.  Note that some of these steps, depending on the modeling scenario, are optional. -->
+
+<!-- 1. Clean the data. As we've seen, this entails, at a minimum, removing data that is logically impossible or obviously the result of a data collection error. -->
+<!-- 2. Make all predictors numeric.  This is an optional step that involves  dummy coding the categorical  variables.  -->
+<!-- 3. Consider removing predictors that contain little information, known as zero variance or near zero variance variables. This is an optional step. -->
+<!-- 4. Consider removing highly correlated variables. This is an optional step that depends on your modeling objective.  Highly correlated predictors---known as multicollinearity---can make it difficult to use a model for inference, since correlated predictors will tend to have inflated standard errors.  Note that multicollnearity should not affect predictive accuracy. -->
+<!-- 5. Deal with missing observations. If using the `caret` package, imputation can be done while fitting the model. -->
+<!-- 6. Fit multiple models and compare estimated out-of-sample error metrics.  -->
+
+
+## Multicolinearity
+
+Highly correlated predictors add noise to a regression model without adding information, and can cause instability in standard error and coefficient estimates. This  is obviously unwelcome if your goal is inference.  Note that *multicollinearity is not a problem for prediction*.
+
+There are more or less complicated ways of identifying multicollinearity statistically.  Various functions in R will use what is known as the "variance inflation factor" or VIF to identify correlated predictors for removal.  More simply, bivariate correlations can be calculated between all the predictors and then one of each correlated pair above a certain threshold can be removed. (See [Chapter 3.3](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictor) in the caret documentation for information on how to implement this strategy.) However you identify the correlated predictors, the solution is to remove them.  
+
+As noted, the symptoms of multicolinearity include instability in standard errors and coefficients.  You will see these estimates go haywire when the correlated predictor is added to the model.  Witness:
+
+```{r x9, exercise = TRUE}
+lm(price ~ rooms, data = complete_homes) %>% 
+  summary
+```
+
+Observe what happens to the coefficient, SE and p-value for `rooms` when we add `beds`:
 
 ```{r x10, exercise = TRUE}
-# Get model summary
-summary(caret_lm)
-
+lm(price ~ rooms + bed, data = complete_homes) %>% 
+  summary
 ```
 
-The degrees of freedom reported here should be the number of observations minus the number of coefficients minus 1.  And it is:  400 - 11 - 1  = 388.  This tells us that `caret` has successfully imputed the missing observations, otherwise the rows with NAs would have been removed, making degrees of freedom much smaller.
-
-
-### Imputation with missForest
-
-There are other approaches to imputation in R that treat missing data as a prediction problem.  The `misForest()` function in the `missForest` package uses the random forest algorithm to predict missing observations in a given column using the non-missing data in the other columns. This function is easy to work with in that it will accept categorical data, so there is no need to dummy code the data beforehand. It does single imputation, meaning that a *single* value is estimated for each missing observation.  This is what you need for prediction.  You will sometimes encounter references to "multiple imputation," in which *multiple* possibilities are estimated for each missing observation. This is a technique that was developed specifically for inference not prediction.  
-
-Notes on usage:
-
-- Remove the outcome variable from your data before doing imputation! Otherwise `missForest()` will use information from the target variable to select values for the missing observations, producing what is known as "target leakage."
-- The main argument to `missForest()`is `xmis`, the dataset with missing observations.
-- Extract the imputed dataset from the imputation object with `$ximp`.
-- Use `set.seed()` to obtain reproducible results!
-
-Here is an example of the syntax. 
-
-
-    
-```{r x10-1, exercise = TRUE}
-# Remember to remove the target and set the seed
-set.seed(123)
-imputed <- missForest(select(c, -Sales))$ximp
-
-summary(imputed)
-
-```
-
-Result:  no missings.  It is now safe to add the outcome variable back into the dataset if needed.
-
-Which one of the these imputation methods---with medians or with missForest---is more accurate?  In this case, since we  inserted the missing observations into this dataset for illustration, we can compare the imputations to the truth. Here is plot showing a head-to-head comparison of imputation error by variable for the two methods.  Input variables have been scaled for comparability.  Overall, missForest has slightly lower imputation error, but negligibly so. 
-
-```{r, results = TRUE}
-set.seed(123)
-imputed$Sales <- NA
-missing_dummies <- dummyVars(Sales~., fullRank = T, data = c) %>% predict(c) %>% data.frame
-missing_dummies <- preProcess(missing_dummies, "scale") %>%  predict(missing_dummies) %>%  data.frame
-original_dummies <- dummyVars(Sales~., fullRank = T, data = Carseats) %>% predict(Carseats) %>% data.frame
-original_dummies <- preProcess(original_dummies, "scale") %>%  predict(original_dummies) %>%  data.frame
-median_dummies <- dummyVars(Sales~., fullRank = T, data = c) %>% predict(c)
-median_dummies <-  preProcess(median_dummies, c("medianImpute","scale")) %>% predict(median_dummies) %>% data.frame
-missforest_dummies <- dummyVars(Sales~., fullRank = T, data = imputed) %>% predict(imputed)%>% data.frame
-missforest_dummies <- preProcess(missforest_dummies, "scale") %>%  predict(missforest_dummies) %>%  data.frame
-
-df <- data.frame( variable = names(data.frame(original_dummies)),
-                  median = 0,
-                  missForest = 0)
-
-
-for(i in 1:nrow(df)){
-  
-  df[i,3] <- ((original_dummies[,i][which(is.na(missing_dummies[,i]))] - missforest_dummies[,i][which(is.na(missing_dummies[,i]))])) %>%  abs %>%  mean
-  
-  df[i,2] <- ((original_dummies[,i][which(is.na(missing_dummies[,i]))] - median_dummies[,i][which(is.na(missing_dummies[,i]))])) %>%  abs %>%  mean
-}
-
-# df %>% 
-#   pivot_longer(cols = c("median","missForest"),names_to="method", values_to="error") %>% 
-#   ggplot(aes(variable, error, fill = method))+
-#   geom_col(position = "dodge")
-
-# df %>% 
-#   pivot_longer(cols = c("median","missForest"),names_to="method", values_to="error") %>%
-#   group_by(method) %>% 
-#   mutate(cum_error = cumsum(error)) %>% 
-#   group_by(variable) %>% 
-#   mutate(avg_error = mean(error)) %>% 
-#   arrange(avg_error) %>% 
-#   ggplot(aes(variable, error, col = method, group = method))+
-#   geom_line() +
-#   theme_minimal()+
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1))+
-#   labs(title = "Comparison of imputation methods",
-#        y = "Cumulative scaled error",
-#        x= "Variable")
-
-df %>% 
-  pivot_longer(cols = c("median","missForest"),names_to="method", values_to="error") %>%
-  group_by(method) %>% 
-  mutate(cum_error = cumsum(error)) %>% 
-  group_by(variable) %>% 
-  mutate(avg_error = mean(error)) %>% 
-  ggplot(aes(variable, error, col = method, group = method))+
-  geom_line() +
-  theme_minimal()+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
-  labs(title = "Comparison of imputation methods",
-       y = "Scaled error",
-       x= "Variable")
-
-# mean(df$median) 
-# mean(df$missForest) 
-  
-```
-
-There are differences, obviously.  But this comparison should give you confidence when imputing with medians, since in this instance the method compares well with more sophisticated approaches like the one implemented in `missForest`.
-
-We are now ready to fit and compare models.  One important consideration is whether a model is overfitting the data. Let's take a quick detour into the issue of overfitting.
-
-## Overfitting and Regularization
-
-The linear model from the previous section has a multiple $R^2$ value of  .78, adjusted $R^2$  of .77, and  a cross validation estimate of $R^2$  of .76. The fact that there is little difference between $R^2$ and adjusted $R^2$ (and the cross-validation estimate of $R^2$) tells us that the model is not overfitting, which is not surprising given the modest number of predictors.   Generally speaking, OLS regression produces simple models that generalize well to new data---this is one of its virtues.
-
-What would a complicated model look like?  Using the imputed dataset created with `missForest` we will create a model that includes all possible two way interactions. We excluded the outcome variable for imputation, so we  need to add it back in when specifying the data source. Observe what happens to the error metrics.
-
+This behavior is due to the correlation between `bed` and `rooms`:
 
 ```{r x11, exercise = TRUE}
-# Fit and assess a complicated linear model
-(caret_overfit <- train(Sales ~ .^2,
-                  method = "lm",
-                  data = cbind(Sales = c$Sales, imputed)))
-
-summary(caret_overfit)
-
+with(complete_homes, cor(bed, rooms))
 ```
 
-
-We now see rather large differences between multiple $R^2$, adjusted $R^2$ and the cross-validation estimate of  $R^2$.  Basically, this model is overfitting.  It is too complicated and will not generalize well to new data. 
-
-A regularized model--- either Lasso or ridge--- would be a good choice to simplify the model, both for interpretation and for improving predictive performance. A good implementation of regularized linear models is in the `glmnet`  package. Specifically, `glmnet`  will fit a mixture of Lasso and ridge, with the mixture being controlled by `alpha`,  a mixing parameter, in addition to the penalty parameter, `lambda`.   Switching between a linear model and a regularized model is trivial in `caret`,  though we do have to take care to center and scale the inputs when using `glmnet` (standardization is typically required when using machine learning algorithms).  
+Clearly, these two variables contain virtually the same information. To reason accurately about effect sizes and statistical significance we need to remove one or the other.  For purposes of prediction, however, it would be fine to leave both in the model, since together they contain more information than just one alone.
 
 
-```{r x11-5, exercise = TRUE}
-# Fit regularized model
-set.seed(123)
-(caret_glmnet <- train(Sales ~ .^2,
-                  method = "glmnet",
-                  preProcess = c("center", "scale"),
-                  data = cbind(Sales = c$Sales, imputed)))
+## Non-linear Data
 
-```
+Price data is typically non-linear.  We see that in this dataset:
 
-The estimated out-of-sample performance for this model has improved substantially over the unpenalized linear model.  Without the seed estimated results will  fluctuate each time the model is fit, since the observations in each cross-validation bootstrap sample  will be randomly chosen and thus different. In this case the lowest estimated out-of-sample RMSE (and highest $R^2$) is with the `alpha` and `lambda` combination in the second to last row.
-
-For a machine learning algorithm like `glmnet`, `caret`  uses cross validation to pick the optimal hyperparameters, here `alpha` and `lambda`. The procedure is to produce a cross-validation estimate of the model's out-of-sample performance at each default combination of the hyperparameters. `caret` then reports, and will use for prediction, the model with the optimal hyperparameters---the hyperparameters producing the best out-of-sample performance. In this case, the best performing model is at `alpha` = 1, which is a Lasso model (a ridge  model would be `alpha` = 0). For now, we will use the default parameter grid search, though it is possible to expand this search via the `tuneLength` or `tuneGrid` arguments, as we will see below.
-
-One of the virtues of a lasso model is its simplicity, since many predictors will have been shrunk to zero, and  thereby removed from the model. We can retrieve the coefficients from the above model with the following code:
- 
 ```{r x12, exercise = TRUE}
-# Retrieve coefficients of the best model
-coef(caret_glmnet$finalModel, caret_glmnet$finalModel$tuneValue$lambda)
 
-``` 
- 
-- `coef()` is a function that pulls coefficients out of the model object.
-- `object$finalModel` extracts the model that `caret`, after having conducted a grid search of optimal `alpha` hyperparameter settings, identifies as the one that will generalize best to new data.
-- `object$finalModel$tuneValue$lambda` extracts from the among the models with the best alpha the one with the optimal `lambda` hyperparameter.
+ggplot(complete_homes, aes(sqft, price)) +
+  geom_point() +
+  theme_minimal() +
+  stat_smooth(method="lm", se = F) +
+  labs(title = "price ~ sqft")
 
-The  coefficients that have been removed are represented with a period.  The result is a much simpler model that will tend to generalize better than a complicated model to new data.  In models without interactions, regularization will also often produce more interpretable models that are easier to explain and more actionable than complicated models. Interpretation is perhaps less clear when the algorithm has removed coefficients in models with interactions.
+```
 
-## Comparing Models
-
-As we have seen, to compare models realistically we need to  consider out-of-sample performance. The best model in-sample will not necessarily generalize well to new data  because  the very quality that allows it to perform well in-sample---its complexity--- means that it has begun to capture  idiosyncrasies in the training  data that will likely not exist in new data. Such a model is *over*fitting and will tend to perform poorly with new data.  `caret`  is a great tool for quickly comparing models based on a *realistic* assessment of their performance. We have seen that the glmnet model (which in this case was a pure Lasso  model) outperformed the linear model. How does a KNN regression model compare?
+The `price` variable spans many orders of magnitude, and the relationship between `price` and `sqft` is not linear, *especially* in San Francisco.
 
 ```{r x13, exercise = TRUE}
-# Fit KNN regression model
-set.seed(123)
-train(Sales ~ .^2,
-      method = "knn",
-      data = cbind(Sales = c$Sales, imputed),
-      preProcess = c("center", "scale"))
+
+ggplot(complete_homes, aes(sqft, price)) +
+  geom_point() +
+  theme_minimal() +
+  facet_wrap(~city) +
+  stat_smooth(method="lm", se = F) +
+  labs(title = "price ~ sqft, varying by city")
 
 ```
 
-This KNN regression model does not do well at all---the out-of-sample error metrics are much worse than either the linear model or the glmnet model.  Perhaps this is because the grid search for optimal `k` is quite small, ranging over only three values.  Let's expand the search via the `tuneLength` argument.  `tuneLength` tells `caret` how many values of `k` to test.
+A linear model will have trouble with non-linear data.  
 
+### Log Transformation
 
+One solution is to log transform  some of the variables.  Log transformation compresses right skewed data and helps the linear model fit better.   The function we often use in R for log transformation, `log()`, uses the natural log.  (`log2()` will compute log base 2.) After log transformation of price, each fixed distance in price represents a multiplication (not an addition) of the value.
 
 ```{r x14, exercise = TRUE}
-set.seed(123)
-train(Sales ~ .^2,
-      method = "knn",
-      data = cbind(Sales = c$Sales, imputed),
-      tuneLength = 7,
-      preProcess = c("center", "scale"))
+
+ggplot(complete_homes, aes(sqft, log(price))) +
+  geom_point() +
+  theme_minimal() +
+  stat_smooth(method="lm", se = F) +
+  labs(title = "log(price) ~ sqft")
 
 ```
 
-Model performance is still not great, though it is better at `k` = 17.  Perhaps it would be even better at higher values of `k`?  That might be worth exploring.  
+That doesn't look like an improvement. Remember that our goal in transforming the data is to make the relationship between two variables linear, so as to improve the fit of a linear model.  The problem is that `sqft` is also right skewed. So, let's log transform `sqft` as well.  
 
-## Downsides of `caret`
-
-While `caret` is great for iterating quickly between very different sorts of models it has some downsides.   Chief among them is that functions that will work in conjunction with a model object created by `lm()` will not always work with a `caret` model object. For example:
 
 ```{r x15, exercise = TRUE}
-summary(caret_glmnet)
+ggplot(complete_homes, aes(log(sqft), log(price))) +
+  geom_point() +
+  theme_minimal() +
+  stat_smooth(method="lm", se = F) +
+  labs(title = "log(price) ~ sqft")
+```
+
+That looks much better!
+
+What is a logarithm anyway?  Think of the Richter scale for earthquake magnitude. Each linear increment---3 to 4, for example---represents a multiplicative  increase in size: 10 times larger.  This is because the Richter scale uses the log base 10 scale.  Basically: $10^3$ = 10 x 10 x 10 = 1000 vs. $10^4$ = 10 x 10 x 10 x 10 = 10,000, which is 10 times larger than $10^3$. The linear increments of the Richter scale uses the exponents on 10, in this case 3 vs. 4.
+
+In statistics we almost always use the natural log, where the base is not 10 but the mathematical constant $e$.  What is $e$? The value of $e$ is $e^1$.
+
+```{r x16, exercise = TRUE}
+(e <- exp(1)) 
+```
+
+The natural log asks:  to what power must $e$ (2.718...) be raised to equal another number? So if we take the natural log of, say, 9, we are asking: to what power must $e$ be raised to equal 9? It must be raised to the power of 2.197...
+
+```{r x17, exercise = TRUE}
+exp(1) ^ 2.197225 
+```
+
+How do we know that?
+
+```{r x18, exercise = TRUE}
+log(9)
+```
+
+Key fact: Natural log undoes exponentiation (raising $e$ to a power) and exponentiation undoes natural log.  Use this identity: $e^{ln(x)}$ = x.  In R: `exp(log(x))` = x. Observe:
+
+```{r x19, exercise = TRUE}
+exp(log(9))
+```
+
+```{r x20, exercise = TRUE}
+
+log(exp(9))
 
 ```
 
-For that reason, you should be prepared to work flexibly back and forth between `caret` and `lm()`.
+Here is what the natural log function looks like:
+
+```{r x21, exercise = TRUE}
+data.frame(x = seq(1, 1000, by = 1)) %>% 
+  mutate(natural_log_x = log(x)) %>% 
+  ggplot(aes(x, natural_log_x)) +
+  geom_line()
+```
+
+Notice that the natural log values are compressed: the range 0-1000 becomes 0-6.5. This is important because a natural log transformation will help make outliers less influential in a regression. 
+
+And here is the reverse of the natural log, the exponential function:
+
+```{r x22, exercise = TRUE}
+data.frame(x = seq(1, 10, by = .01)) %>% 
+  mutate(exp_x = exp(x)) %>% 
+  ggplot(aes(x, exp_x)) +
+  geom_line()
+```
+
+A log transformation takes an exponential increase and makes it linear, which the the goal in linear modeling. 
+
+```{r x23, exercise = TRUE}
+data.frame(x = seq(1, 10, by = .01)) %>% 
+  mutate(exp_x = exp(x)) %>% 
+  ggplot(aes(x, log(exp_x))) +
+  geom_line()
+```
+
+Such a transformation will often improve model fit. Why? Think about it this way:  
+
+- Your goal in creating a model is to faithfully summarize the data, but outlying observations can frustrate that goal by unduly influencing the model.  Consider a simple data summary like a mean.  If the data are skewed, the mean will be pulled away from the center of the data and will not be very representative. The same thing happens in a linear model when the outcome variable is skewed.
+
+- If we can make outliers less anomalous with a data transformation then we can reduce their influence and improve the model.  That is the point of log transforming the outcome variable. 
+
+Will log transforming `price` improve the model? We can answer this question empirically by comparing models using $R^2$. In the models below I will use shorthand: `.`  means to include all predictors.
+
+No log transformation:
+
+```{r x24, exercise = TRUE}
+summary(nolog_mod <- lm(price ~ ., data = complete_homes))$r.square
+```
+
+```{r x25, exercise = TRUE}
+plot(nolog_mod, which = 1)
+```
+Terrible!  The exponential increase in `price` shows up in the residuals.
+
+Log transform `price` (a log model):
+
+```{r x26, exercise = TRUE}
+summary(log_mod <- lm(log(price) ~ ., data = complete_homes))$r.square
+```
+
+```{r x27, exercise = TRUE}
+plot(log_mod, which = 1)
+```
+
+
+Log transform `price` and `sqft` (a log-log model):
+
+```{r x28, exercise = TRUE}
+summary(loglog_mod <- lm(log(price) ~ . -sqft + log(sqft), data = complete_homes))$r.square
+```
+
+```{r x29, exercise = TRUE}
+plot(loglog_mod, which = 1)
+```
+
+
+The third model, judged by $R^2$, and the residual plot, is the best.
+
+One thing to keep in mind is that after log transformation the model's fitted values will be expressed in log units.  This won't affect $R^2$, since it is calculated from a ratio---$1 -\frac{RSS}{TSS}$---and  therefore does not depend on the underlying units. But RMSE will be affected.  To calculate RMSE from a log or log-log model in original units (rather than log units)  will require exponentiating the fitted values:  $ \sqrt{\frac{1}{n}(y_i - e^{\hat{y}_i})^2}$.
+
+Here is residual standard deviation, in log units, for the log-log model:
+
+```{r x30, exercise = TRUE}
+summary(loglog_mod)$sigma
+```
+
+And here is the calculation of RMSE in original units:
+
+```{r x31, exercise = TRUE}
+
+rmse <- function(actual, fitted) sqrt(mean(actual - fitted)^2)
+
+
+rmse(complete_homes$price, exp(fitted(loglog_mod)))
+```
+
+You can see the advantage of computing RMSE in dollars rather than log dollars.  The average error in the log-log model is meaningless, except for model comparison.  But having the error in dollars provides a clear sense of the model's accuracy.
+
+### Interpreting a log model
+
+The coefficients in a log or log-log model are expressed in log units, which are hard to connect to real world quantities.  
+
+It is always possible to leave the coefficients expressed in log units and interpret them as for a model with an unlogged outcome. For example, the coefficient for log `sqft` could be interpreted as the change in log `price` associated with one unit increase in log `sqft`, holding the other predictors constant.  This provides limited insight, however, since log units are not intuitive. So, how would we make the scale of these coefficients easier to understand?
+
+
+For reference, here are the coefficients for the log model.
+
+```{r x32, exercise = TRUE}
+log_mod$coefficients
+```
+
+We need to exponentiate coefficients in a log model to get the percentage increase in the outcome associated with a 1 unit increase in the predictor, holding the other predictors constant. Thus, the coefficient for Menlo Park, .317, would `exp(.317)` = 1.373, which is a 37.3% increase compared the baseline of 1: 1.373 - 1  = -.373 * 100 = 37.3%. In other words, we see a 37.3% increase in average home prices in Menlo Park compared to the reference city of Berkeley, everything being equal.  As a rule of thumb, we can dispense with exponentiation when the coefficient is close to 1 because exponentiating returns a number very close to the original. For example, `exp(.02)` = 1.02, representing a 2% increase over the baseline of 1.  (The calculation goes like this: 1.02 - 1 = .02 * 100 = 2%.) In this example the rule of thumb works well. But it does not work well for the Menlo Park coefficient which is further from 0, as we saw above.
+
+
+For reference, here are the coefficients for the log-log model.
+
+
+```{r x33, exercise = TRUE}
+loglog_mod$coefficients
+```
+
+
+How would coefficients in a log-log model, in which *both* the outcome and a predictor had been log transformed, be interpreted?  Mercifully, we don't need to exponentiate.  Instead, we can interpret the coefficient directly as a percentage increase.  The coefficient for `log(sqft)` is  .976.  This would mean that each 1% increase in square feet is associated with a .976% increase in the price. The other coefficients would be interpreted similarly as percentage increases.
+
+Notice that the signs on the coefficients in this model now make sense, given what we know about average home prices: Oakland has lower prices than Berkeley, but San Francisco and Menlo Park have higher prices. 
+
+## Outliers
+
+There are some extreme home prices in this dataset:
+
+```{r x34, exercise = TRUE}
+homes %>% 
+  arrange(desc(price)) %>% 
+  slice(1)
+```
+
+This is an outlier, yes, but it is not---presumably---a data collection error, but simply a very large (and expensive) home.
+
+In general, outliers *should not* be reflexively removed from a data set. Simply because the model fit is better without an outlier is not a reason to remove it!  Instead:
+
+1. Ask questions about data collection.  Is the outlier a mistake, the result of an error?  
+
+2. Ask questions of domain experts  to understand other factors influencing home sales.  Could a variable be added, or created, that would help explain high prices? 
+
+
