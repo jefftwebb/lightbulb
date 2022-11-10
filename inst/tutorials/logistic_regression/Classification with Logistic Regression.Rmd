@@ -16,6 +16,7 @@ library(knitr)
 library(e1071)
 library(janitor)
 library(missForest)
+library(imputeMissings)
 
 # abiding data
 
@@ -84,6 +85,8 @@ dummy_frame <- preProcess(dummy_frame, "medianImpute") %>%
   predict(newdata = dummy_frame) %>% 
   data.frame
 
+m_clean <- impute(m, method = "median/mode")
+
 
 set.seed(123)
 caret_glm <- train(y = m$leave,
@@ -122,10 +125,10 @@ Linear regression will work for modeling an integer binary target or response va
 
 The lecture videos cover the details of logistic regression. Consequently, in this tutorial, I will highlight the key points, but then move quickly into application. The emphasis will be on:
 
-- The modeling pipeline using the `caret` package.
 - Interpreting logistic regression coefficients.
-- The confusion matrix and the ROC curve for comparing comparing classification models.
-- Comparing models using estimated out-of-sample error metrics.
+- Using AIC and Residual Deviance to compare nested logistic regression models.
+- Using the confusion matrix and the ROC curve to compare classification models more broadly.
+- Interpreting logistic regression results as probabilities.
 
 First, a terminological caution.  In previous modules we have used a log transformation of a linear model outcome variable to improve the fit. That is a very different model than a logistic regression model of a binary outcome.  Don't be mislead by the similarity of "log" and "logistic"!
 
@@ -226,26 +229,26 @@ Here is an example of a simple logistic regression, modeling customer churn with
 ```
 
 
-Here is exactly the same logistic regression, fit with `caret`'s `train()` function as a wrapper. `caret` is happy to use a factor variable as the target. However, we first need to  explicitly order the factor levels in `leave`, otherwise `caret` would use the default alphabetic ordering: we would be modeling `STAY` and our results would be reversed. 
+<!-- Here is exactly the same logistic regression, fit with `caret`'s `train()` function as a wrapper. `caret` is happy to use a factor variable as the target. However, we first need to  explicitly order the factor levels in `leave`, otherwise `caret` would use the default alphabetic ordering: we would be modeling `STAY` and our results would be reversed.  -->
 
-```{r x3, exercise =TRUE}
-# Change factor levels
-m$leave <- factor(m$leave, levels = c("STAY", "LEAVE"))
+<!-- ```{r x3, exercise =TRUE} -->
+<!-- # Change factor levels -->
+<!-- m$leave <- factor(m$leave, levels = c("STAY", "LEAVE")) -->
 
-# Check factor levels
-levels(m$leave)
-```
+<!-- # Check factor levels -->
+<!-- levels(m$leave) -->
+<!-- ``` -->
 
-After that change, the results are identical.
+<!-- After that change, the results are identical. -->
 
-```{r x4, exercise =TRUE}
-# Use caret to fit logistic regression
-(caret_glm_model <- train(leave ~ handset_price,
-                          method = "glm",
-                          data = m)) %>% 
-   summary
+<!-- ```{r x4, exercise =TRUE} -->
+<!-- # Use caret to fit logistic regression -->
+<!-- (caret_glm_model <- train(leave ~ handset_price, -->
+<!--                           method = "glm", -->
+<!--                           data = m)) %>%  -->
+<!--    summary -->
 
-```
+<!-- ``` -->
 
 
 <!-- ```{r x5, exercise =TRUE} -->
@@ -290,29 +293,29 @@ predict(glm_model, type = "response") %>%
 
 ```
 
-The syntax for prediction is (unfortunately) different in `caret`. Use `type = "prob"`.
+<!-- The syntax for prediction is (unfortunately) different in `caret`. Use `type = "prob"`. -->
 
-```{r x8, exercise =TRUE}
-# Inspect fitted values on probability scale
-predict(caret_glm_model, type = "prob") %>%  
-  head
+<!-- ```{r x8, exercise =TRUE} -->
+<!-- # Inspect fitted values on probability scale -->
+<!-- predict(caret_glm_model, type = "prob") %>%   -->
+<!--   head -->
 
-```
+<!-- ``` -->
 
-The output of `predict()` in this case is a two column data frame, in which the sum of the two columns equals 1 for each row. (This is because the two outcomes are mutually exclusive.) To use this data frame for predictions requires choosing the appropriate column, which can be indexed either with square bracket or with column (`$`) notation:
+<!-- The output of `predict()` in this case is a two column data frame, in which the sum of the two columns equals 1 for each row. (This is because the two outcomes are mutually exclusive.) To use this data frame for predictions requires choosing the appropriate column, which can be indexed either with square bracket or with column (`$`) notation: -->
 
-```{r x9, exercise =TRUE}
-# Extract probabilities from caret model:
+<!-- ```{r x9, exercise =TRUE} -->
+<!-- # Extract probabilities from caret model: -->
 
-# Method 1
-predict(caret_glm_model, type = "prob")[, 2] %>%  
-  head
+<!-- # Method 1 -->
+<!-- predict(caret_glm_model, type = "prob")[, 2] %>%   -->
+<!--   head -->
 
-# Method 2
-predict(caret_glm_model, type = "prob")$LEAVE %>%  
-  head
+<!-- # Method 2 -->
+<!-- predict(caret_glm_model, type = "prob")$LEAVE %>%   -->
+<!--   head -->
 
-```
+<!-- ``` -->
 
 ## Understanding Model Output
 
@@ -673,58 +676,53 @@ roc(m$leave, predict(glm_model, type = "response"),
 
 ## MegaTelCo Churn Example
 
-Equipped with the above information we will practice the entire modeling pipeline in preparation for the case study.
+Equipped with the above information we will practice the entire modeling pipeline.
 
 - Do necessary cleaning.
-- Create a set of predictors that are entirely numeric. Why do we do this? So we can impute missing observations with medians.
+- Impute with mode/median.  
 - Remove variables with near zero variance. This is an optional step. 
-- Impute with medians.  This time we will impute outside of the `train()` function.
-- Assess and remove correlated variables. This is also an optional step.
-- Fit a logistic regression model of churn.
+- Fit and interpret a logistic regression model of churn.
 
 ### Cleaning
 
 Remember to remove the ID column before modeling!   Obviously there are many missing observations; we will impute those below. The categorical variables are already coded as factors.
 
-### Dummy variables
+### Impute
 
-Remember to include the `fullRank =T` argument!
+Since the goal in this case is to interpret coefficients, we could use multiple imputation. However, for simplicity we will use single imputation.
 
-```{r x21_5, exercise =TRUE, warning=FALSE}
-# Set up dummy frame, remembering to remove id
-dummy_frame <- dummyVars(leave~ ., fullRank =TRUE, data = select(m, -id)) %>% 
-  predict(newdata = m)
+```{r x25, exercise =TRUE}
+# Impute missing observations
+m_clean <- impute(m, method = "median/mode")
 
-# Check that the conversion worked
-dummy_frame %>% 
-  data.frame %>% 
-  glimpse
-
-
+# Check that imputation was successful
+m_clean %>% 
+  complete.cases %>% 
+  all
 ```
 
 ### Remove near zero variance predictors
 
-There are two near zero variance predictors identified by `nzv()`. 
+There are no zero variance predictors identified by `nzv()`. 
 
 ```{r x24, exercise =TRUE}
 # Check for near zero variance predictors
-nzv(dummy_frame, names = T) 
+nzv(m_clean, names = T) 
 
 ```
 
-`Reported_usage_level.avg` is a dummy variable consisting in mostly 0s. `Overage_charge` also has many 0s. Let's look closer:
+<!-- `Reported_usage_level.avg` is a dummy variable consisting in mostly 0s. `Overage_charge` also has many 0s. Let's look closer: -->
 
-```{r x24_1, exercise =TRUE}
+<!-- ```{r x24_1, exercise =TRUE} -->
 
-dummy_frame %>% 
-  data.frame %>% 
-  select(overage, reported_usage_level.avg) %>% 
-  head(20)
+<!-- dummy_frame %>%  -->
+<!--   data.frame %>%  -->
+<!--   select(overage, reported_usage_level.avg) %>%  -->
+<!--   head(20) -->
 
-```
+<!-- ``` -->
 
-There is clearly information in these variables. As I noted in the previous tutorial, a little information is better than none!  And including weak predictors in a regression model will typically not cause problems. Consequently, we will leave these variables in the predictor set. Removing them *might* make sense if your data is high dimensional and you need an excuse to get rid of predictors. 
+<!-- There is clearly information in these variables. As I noted in the previous tutorial, a little information is better than none!  And including weak predictors in a regression model will typically not cause problems. Consequently, we will leave these variables in the predictor set. Removing them *might* make sense if your data is high dimensional and you need an excuse to get rid of predictors.  -->
 
 
 <!-- ```{r x24_5} -->
@@ -739,106 +737,92 @@ There is clearly information in these variables. As I noted in the previous tuto
 <!-- If there were, we would use the column numbers produced by `nzv()` to remove them, if that seemed warranted in the context of the analysis. -->
 
 
-### Impute
-
-Once all the predictors are numeric, we can use impute missing observations. In this case we are imputing outside of the `train()` function in order to have complete cases for the next (optional) step in the modeling pipeline: finding and removing highly correlated predictors.  
-
-```{r x25, exercise =TRUE}
-# Impute missing observations
-dummy_frame <- preProcess(dummy_frame, "medianImpute") %>% 
-  predict(newdata = dummy_frame)
-
-# Check that imputation was successful
-dummy_frame %>% 
-  complete.cases %>% 
-  all
-```
-
-### Find and remove correlated variables
-
-As it turns out, there are no  highly correlated predictors. Note that the cutoff used in the `findCorrelation()`  function is somewhat arbitrary. Play around with values, and resulting model performance, to choose a good value. The cutoff value will  be different for different applications. Review the syntax for using the function in [chapter 3.3 of the caret documentation](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictors).
-
-Remember that it is not necessary to  remove correlated predictors if your goal is prediction. the `findCorrelation()` take a correlation matrix as input and outputs one of two variables that have a correlation over the cutoff. 
-
-```{r x26, exercise =TRUE}
-# Find correlations
-dummy_frame %>% 
-  cor %>% 
-  findCorrelation(cutoff = .8, names = T)
 
 
-```
+<!-- ### Find and remove correlated variables -->
 
-There are no predictors with a correlation higher than .8. 
+<!-- As it turns out, there are no  highly correlated predictors. Note that the cutoff used in the `findCorrelation()`  function is somewhat arbitrary. Play around with values, and resulting model performance, to choose a good value. The cutoff value will  be different for different applications. Review the syntax for using the function in [chapter 3.3 of the caret documentation](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictors). -->
 
-### Fit multiple models
+<!-- Remember that it is not necessary to  remove correlated predictors if your goal is prediction. the `findCorrelation()` take a correlation matrix as input and outputs one of two variables that have a correlation over the cutoff.  -->
 
-The task now is to fit and compare a variety of models using the `train()` function in `caret`.  The best model is the one with the highest cross-validation estimated out-of-sample performance.  Note that `caret`'s automatic use of cross-validation makes model-fitting time-consuming, since multiple models are being fit, especially if there are hyperparameters to optimize.  (For example, 10-fold cross-validation will fit 10 models. Suppose that the model also includes 2 hyperparameters, as in the case of `glmnet()`, and `caret` is checking 3 possible values to optimize those hyperparameters for out-of-sample performance.  That is $10 * 3^2 = 90$ models!) To speed things up in the following code, I have used 5-fold cross-validation, defined with the `trainControl()` function in the `trControl` argument.
+<!-- ```{r x26, exercise =TRUE} -->
+<!-- # Find correlations -->
+<!-- m_clean %>%  -->
+<!--   cor %>%  -->
+<!--   findCorrelation(cutoff = .8, names = T) -->
 
-Note: the outcome variable should be a binary factor for caret.
+
+<!-- ``` -->
+
+<!-- There are no predictors with a correlation higher than .8.  -->
+
+### Fit model
+
+We will standardize the continuous inputs to make it easier to interpret model coefficients.
+
+<!-- The task now is to fit and compare a variety of models using the `train()` function in `caret`.  The best model is the one with the highest cross-validation estimated out-of-sample performance.  Note that `caret`'s automatic use of cross-validation makes model-fitting time-consuming, since multiple models are being fit, especially if there are hyperparameters to optimize.  (For example, 10-fold cross-validation will fit 10 models. Suppose that the model also includes 2 hyperparameters, as in the case of `glmnet()`, and `caret` is checking 3 possible values to optimize those hyperparameters for out-of-sample performance.  That is $10 * 3^2 = 90$ models!) To speed things up in the following code, I have used 5-fold cross-validation, defined with the `trainControl()` function in the `trControl` argument. -->
+
+<!-- Note: the outcome variable should be a binary factor for caret. -->
 
 ```{r x27, exercise =TRUE, warnings = F, messages = F}
-# Fit multiple models.  This code is slow to run!
 
-set.seed(123)
-(caret_glm <- train(y = m$leave,
-                   x = dummy_frame,
-                   method = "glm",
-                   trControl = trainControl(method = "cv", number = 5)))
+model <- glm(ifelse(leave=="LEAVE", 1, 0) ~ college + 
+               scale(income) + 
+               scale(overage) +
+               scale(leftover) +
+               scale(house)+
+               scale(handset_price) +
+               scale(over_15mins_calls_per_month) +
+               scale(average_call_duration) +
+               reported_satisfaction  +
+               reported_usage_level +
+               considering_change_of_plan, family = binomial, data = m_clean)
 
-set.seed(123)
-(caret_glmnet <- train(y = m$leave,
-                   x = dummy_frame,
-                   method = "glmnet",
-                   preProcess = c("center","scale"),
-                   trControl = trainControl(method = "cv", number = 5)))
-
-set.seed(123)
-(caret_knn <- train(y = m$leave,
-                   x = dummy_frame,
-                   method = "knn",
-                   preProcess = c("center","scale"),
-                   trControl = trainControl(method = "cv", number = 5)))
-```
-
-Remember that the information `caret` prints to the screen is the cross-validation estimated out-of-sample model performance.  By this measure the glmnet model is only *very slightly* better than the glm model.  Here is a ROC curve displaying the performance of these classifiers in-sample, using all the defaults in the `ggroc()` function:
-
-```{r x28, exercise =TRUE, warning=F, message= F}
-# Set up list of ROC objects for different models
-(model_list <- list(glm = roc(m$leave, predict(caret_glm, type = "prob")$LEAVE),
-                   glmnet = roc(m$leave, predict(caret_glmnet, type = "prob")$LEAVE),
-                   KNN = roc(m$leave, predict(caret_knn, type = "prob")$LEAVE)))
-
-# Plot ROC curve
-ggroc(model_list) +
-  geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), color="grey", linetype="dashed") +
-  theme_minimal() +
-  labs(title = "ROC curve for models of churn") 
-```
-
-This default plot produced by pROC has a flipped x-axis;  the resulting curve, however,  represents exactly the same  information as the one  included earlier. 
-
-The two logistic regression models, regularized and unregularized, are nearly identical performance-wise.  The green line for the glmnet ROC curve is perfectly superimposed on the red line for the glm ROC curve. The similarity in performance is not surprising since the number of predictors is relatively small and the risk of overfitting is correspondingly slight. The regularized model does not have much room for improving the generalizability of the logistic regression model. The KNN classifier is clearly the best model in-sample, with a much higher AUC than the other two.  But the cross-validation estimate of the KNN classifier's performance on new data reveals that this model's in-sample performance is misleading and comes at the expense of out-of-sample performance:  it is overfitting.
-
-### Assessing and interpreting variable importance
-
-Although the performance of the glmnet and glm  models are almost identical, the glmnet  model, in theory, has the advantage of being simpler.   Here are the coefficients  for the final model, which, because  the inputs have been centered and scaled, can be used to assess effect sizes.
-
-```{r x29, exercise =TRUE}
-# Extract glmnet coefficients
-coef(caret_glmnet$finalModel, caret_glmnet$finalModel$tuneValue$lambda) %>% 
-  round(2)
-
+summary(model)
 
 ```
 
-As we can see, this model is actually not simpler: none of the coefficients have been removed from the model (though they may have been shrunk slightly towards 0). This is because, as noted above, the logistic regression model is not overfitting the data so the regularized model does not have much work to do. Nevertheless, let's interpret these coefficients.
+<!-- House is the strongest predictor. Followed by overage. (We look at the absolute value of the coefficient.) -->
+
+
+<!-- <!-- Remember that the information `caret` prints to the screen is the cross-validation estimated out-of-sample model performance.  By this measure the glmnet model is only *very slightly* better than the glm model.  Here is a ROC curve displaying the performance of these classifiers in-sample, using all the defaults in the `ggroc()` function: --> 
+
+<!-- <!-- ```{r x28, exercise =TRUE, warning=F, message= F} --> 
+<!-- <!-- # Set up list of ROC objects for different models --> 
+<!-- <!-- (model_list <- list(glm = roc(m$leave, predict(caret_glm, type = "prob")$LEAVE), --> 
+<!-- <!--                    glmnet = roc(m$leave, predict(caret_glmnet, type = "prob")$LEAVE), --> 
+<!-- <!--                    KNN = roc(m$leave, predict(caret_knn, type = "prob")$LEAVE))) --> 
+
+<!-- <!-- # Plot ROC curve --> 
+<!-- <!-- ggroc(model_list) + --> 
+<!-- <!--   geom_segment(aes(x = 1, xend = 0, y = 0, yend = 1), color="grey", linetype="dashed") + --> 
+<!-- <!--   theme_minimal() + --> 
+<!-- <!--   labs(title = "ROC curve for models of churn")  --> 
+<!-- <!-- ``` --> 
+
+<!-- <!-- This default plot produced by pROC has a flipped x-axis;  the resulting curve, however,  represents exactly the same  information as the one  included earlier.  --> 
+
+<!-- <!-- The two logistic regression models, regularized and unregularized, are nearly identical performance-wise.  The green line for the glmnet ROC curve is perfectly superimposed on the red line for the glm ROC curve. The similarity in performance is not surprising since the number of predictors is relatively small and the risk of overfitting is correspondingly slight. The regularized model does not have much room for improving the generalizability of the logistic regression model. The KNN classifier is clearly the best model in-sample, with a much higher AUC than the other two.  But the cross-validation estimate of the KNN classifier's performance on new data reveals that this model's in-sample performance is misleading and comes at the expense of out-of-sample performance:  it is overfitting. --> 
+
+<!-- ### Assessing and interpreting variable importance -->
+
+<!-- Although the performance of the glmnet and glm  models are almost identical, the glmnet  model, in theory, has the advantage of being simpler.   Here are the coefficients  for the final model, which, because  the inputs have been centered and scaled, can be used to assess effect sizes. -->
+
+<!-- ```{r x29, exercise =TRUE} -->
+<!-- # Extract glmnet coefficients -->
+<!-- coef(caret_glmnet$finalModel, caret_glmnet$finalModel$tuneValue$lambda) %>%  -->
+<!--   round(2) -->
+
+
+<!-- ``` -->
+
+<!-- As we can see, this model is actually not simpler: none of the coefficients have been removed from the model (though they may have been shrunk slightly towards 0). This is because, as noted above, the logistic regression model is not overfitting the data so the regularized model does not have much work to do. Nevertheless, let's interpret these coefficients. -->
 
 `House` has the largest effect size, followed by `overage_charge`. Here is how we would interpret these coefficients in terms of log odds:
 
-- An increase of one unit in centered and scaled `house` (i.e., one standard deviation)  is associated with a change of -.49 in the log odds of churn. (OR: $e^{-.49} = .61$, indicating about a 40% *decrease* in the odds of churn compared to the baseline of 1.)
+- An increase of one unit in centered and scaled `house` (i.e., one standard deviation)  is associated with a change of -.497 in the log odds of churn. (OR: $e^{-.497} = .61$, indicating about a 40% *decrease* in the odds of churn compared to the baseline of 1.)
 
-- An increase of one unit in centered and scaled `overage_charge` (i.e., one standard deviation)  is associated with a change of .42 in the log odds of churn. (OR: $e^{.42} = 1.52$, indicating about a 52% *increase* in the odds of churn compared to the baseline of 1.)
+- An increase of one unit in centered and scaled `overage_charge` (i.e., one standard deviation)  is associated with a change of .41 in the log odds of churn. (OR: $e^{.41} = 1.51$, indicating about a 51% *increase* in the odds of churn compared to the baseline of 1.)
 
 We would obviously want to use non-causal language to describe these relationships, since  the value of a person's home, for example, does not cause cell phone decisions!   Insofar as house price is a proxy for wealth, though, this result might indicate that customers with more money are less likely to change plans.   And customers with higher overage charges---the fees for going over the allowed minutes on the plan---might be more likely to change providers   We would need to do additional modeling to understand these relationships, and develop a causal account of the factors influencing churn.
 
@@ -974,7 +958,7 @@ The method described above for calculating probabilities works well for a *simpl
 How would this work exactly in the MegaTelCo example?  First, suppose we would like to understand the effect of `overage` on churn using a multivariable model. Here is the model:
 
 ```{r x11_35, exercise =TRUE}
-summary(caret_glm)
+summary(model)
 
 ```
 
@@ -988,8 +972,7 @@ Calculate `p(LEAVE)` for each customer in the test set with no policy change. Th
 
 ```{r x11_4, exercise =TRUE}
 # Calculate churn probabilities without policy change
-baseline <- predict(caret_glm,  
-                    type = "prob")$LEAVE
+baseline <- predict(model, type = "response")
 
 head(baseline)
 ```
@@ -1010,10 +993,8 @@ Calculate `p(LEAVE)` for each customer in the test set after the policy change. 
 
 ```{r x11_6, exercise =TRUE}
 # Calculate new probabilities with the new data (same model)
-policy_change <- predict(caret_glm,
-                         type = "prob",
-                         newdata = dummy_frame %>% 
-                           mutate(overage = overage - 300))$LEAVE
+policy_change <- predict(model,  type = "response", 
+                         newdata = (m_clean %>% mutate(overage = overage - 300)))
 
 head(policy_change)  
 
