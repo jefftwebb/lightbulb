@@ -13,9 +13,10 @@ library(GGally)
 library(mice)
 library(imputeMissings)
 library(missForest)
+library(ranger)
 
 
-homes <- read_csv("LAHomes.csv") %>% 
+homes <- read_csv("old_LAHomes.csv") %>% 
   mutate(city = case_when(city == "Beverly Hills" ~ "San Francisco",
                           city == "Santa Monica" ~ "Menlo Park",
                           city == "Westwood" ~ "Berkeley", TRUE ~ "Oakland"))
@@ -61,7 +62,7 @@ nolog_mod <- lm(price ~ city +
              bath + 
              pool, data = complete_homes)
 
-
+write_csv(homes, "homes.csv")
 
 ```
 
@@ -450,6 +451,8 @@ Log transform `price` and `sqft` (a log-log model):
 ```{r x28, exercise = TRUE}
 summary(loglog_mod <- lm(log(price) ~ . -sqft + log(sqft), data = complete_homes))$r.square
 ```
+
+The shorthand code here says to first include all predictors, then take out `sqft` and add in `log(sqft)`.
 
 ```{r x29, exercise = TRUE}
 plot(loglog_mod, which = 1)
