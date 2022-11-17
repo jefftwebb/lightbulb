@@ -1,5 +1,5 @@
 # lightbulb
-Lightbulb is an R package featuring a collection of data analysis tutorials. The tutorials support learning in Introduction to Business Analytics and Statistics and Predictive Analytics, IS 6489, offered in the David Eccles School of Business at the University of Utah.
+Lightbulb is an R package featuring a collection of data analysis tutorials. The tutorials support learning in Introduction to Business Analytics and Statistics and Predictive Analytics, offered in the David Eccles School of Business at the University of Utah.
 
 1.	Probability
 2.	Comparing Means
