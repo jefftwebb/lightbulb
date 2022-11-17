@@ -60,97 +60,97 @@ head(boot_distribution, 20)
 
 The bootstrap is a computational method for estimating the [standard error](https://en.wikipedia.org/wiki/Standard_error) (SE) for *any* test statistic. 
 
-Why does that matter, you ask?   After all, the previous module  covered confidence intervals in some detail, which are explicitly defined  in terms of the SE, and in that case we used a formula to estimate the SE:  $\frac{s}{\sqrt{n}}$. Why not just keep using that? The answer is that we can, and will, but  there are a number of other sample statistics, such as the median, for which there is no theoretically-derived formula to estimate the SE.  Furthermore, the formula for SE assumes the sample is normally distributed.  If it is not then the formula will not do a good job of estimating the standard deviation of the sampling distribution.  To obtain the SE in these situations requires a different approach. 
+Why does that matter, you ask?   After all, previous modules  covered confidence intervals in some detail, which are explicitly defined  in terms of the SE, and in that case we used a formula to estimate the SE:  $\frac{s}{\sqrt{n}}$. Why not just keep using that? The answer is that we can, and will, but  there are a number of other sample statistics, such as the median, for which there is no theoretically-derived formula to estimate the SE.  Furthermore, the formula for SE assumes the sample is normally distributed.  If it is not then the formula will not do a good job of estimating the standard deviation of the sampling distribution.  To obtain the SE in these situations requires a different approach. 
 
-Why do we care about the SE, anyway?  Because we use it for inference. As we saw in the last module, 95% CIs offer an informal decision procedure by defining the range of mean values most consistent with the sample. Our example was the A/B test, with 29 observations of means for the A ad and---due to a data collection error---just one mean for the B ad. We constructed a 95% CI for the A sample, and then compared the single B observation to this interval.  The interval contained the B observation,  allowing us to conclude that the B observation *could* have come from the A distribution, and that the observed difference was not statistically significant (but that more research was probably warranted).
+Why do we care about the SE, anyway?  Because we use it for inference. 95% CIs offer an informal decision procedure by defining the range of mean values most consistent with the sample. 
 
 The value of the bootstrap is that it gives us the ability to simulate a sampling distribution for any statistic from any sample (provided that $n \ge 30$), calculate its standard deviation (which, because it is a sampling distribution, is equivalent to the SE), and define a CI.  Thus, we can use the bootstrap to do inference for *any* sample statistic.  This is extremely useful.
 
-Before explaining and illustrating the bootstrap I'd like to start out with a few cautions about p-values.
+<!-- Before explaining and illustrating the bootstrap I'd like to start out with a few cautions about p-values. -->
 
-## P-Values
+<!-- ## P-Values -->
 
-As we've seen, p-values represent the probability in the null distribution of a value as extreme or more extreme than the observed test statistic occurring. We can think of it as a measure of surprise: the smaller the p-value the more surprised we would be if the observed test statistic occurred by chance. Used cautiously, p-values are a helpful data analytic tool.  But they have problems you should be aware of.
+<!-- As we've seen, p-values represent the probability in the null distribution of a value as extreme or more extreme than the observed test statistic occurring. We can think of it as a measure of surprise: the smaller the p-value the more surprised we would be if the observed test statistic occurred by chance. Used cautiously, p-values are a helpful data analytic tool.  But they have problems you should be aware of. -->
 
-### The sample size problem
+<!-- ### The sample size problem -->
 
-Statistical significance---as determined by a small p-value---is strongly influenced  by $n$.  The larger the sample size the easier it is to detect very small differences, which may be practically insignificant. In such situations p-values are largely worthless. Conversely, there may be very large and important differences that are not statistically significant simply because the sample size is small.
+<!-- Statistical significance---as determined by a small p-value---is strongly influenced  by $n$.  The larger the sample size the easier it is to detect very small differences, which may be practically insignificant. In such situations p-values are largely worthless. Conversely, there may be very large and important differences that are not statistically significant simply because the sample size is small. -->
 
-This point can be easily illustrated with simulation.  Consider two scenarios: 1. Tiny true difference between two samples but large $n$ results in small p-value.  2. Large true difference between samples but small $n$ results in large p-value ($p>.05$).
+<!-- This point can be easily illustrated with simulation.  Consider two scenarios: 1. Tiny true difference between two samples but large $n$ results in small p-value.  2. Large true difference between samples but small $n$ results in large p-value ($p>.05$). -->
 
-```{r ex1, exercise = TRUE}
-############################################
-### Scenario 1: Tiny difference, Large n ###
-############################################
+<!-- ```{r ex1, exercise = TRUE} -->
+<!-- ############################################ -->
+<!-- ### Scenario 1: Tiny difference, Large n ### -->
+<!-- ############################################ -->
 
-# Draw samples from N(0,1) and N(.005, 1)
-set.seed(123)
-sims <- 100000
-sample1 <- rnorm(n = sims, mean = 0, sd = 1)
-sample2 <- rnorm(n = sims, mean = 0.005, sd = 1)
+<!-- # Draw samples from N(0,1) and N(.005, 1) -->
+<!-- set.seed(123) -->
+<!-- sims <- 100000 -->
+<!-- sample1 <- rnorm(n = sims, mean = 0, sd = 1) -->
+<!-- sample2 <- rnorm(n = sims, mean = 0.005, sd = 1) -->
 
-# Calculate t-statistic
-t_stat <- (mean(sample1) - mean(sample2))/
-  sqrt(var(sample1)/sims + var(sample2)/sims)
+<!-- # Calculate t-statistic -->
+<!-- t_stat <- (mean(sample1) - mean(sample2))/ -->
+<!--   sqrt(var(sample1)/sims + var(sample2)/sims) -->
 
-# Calculate p-value
-pt(t_stat, df = sims - 2) * 2 # significant
+<!-- # Calculate p-value -->
+<!-- pt(t_stat, df = sims - 2) * 2 # significant -->
 
-```
+<!-- ``` -->
 
-```{r ex2, exercise = TRUE}
-##############################################
-### Scenario 2: Large difference, Small n ####
-##############################################
+<!-- ```{r ex2, exercise = TRUE} -->
+<!-- ############################################## -->
+<!-- ### Scenario 2: Large difference, Small n #### -->
+<!-- ############################################## -->
 
-# Draw samples from N(0,1) and N(1, 1)
-set.seed(123)
-sims <- 8
-sample1 <- rnorm(n = sims, mean = 0, sd = 1)
-sample2 <- rnorm(n = sims, mean = 1, sd = 1)
+<!-- # Draw samples from N(0,1) and N(1, 1) -->
+<!-- set.seed(123) -->
+<!-- sims <- 8 -->
+<!-- sample1 <- rnorm(n = sims, mean = 0, sd = 1) -->
+<!-- sample2 <- rnorm(n = sims, mean = 1, sd = 1) -->
 
-# Calculate t-statistic
-t_stat <- (mean(sample1) - mean(sample2))/
-  sqrt(var(sample1)/sims + var(sample2)/sims)
+<!-- # Calculate t-statistic -->
+<!-- t_stat <- (mean(sample1) - mean(sample2))/ -->
+<!--   sqrt(var(sample1)/sims + var(sample2)/sims) -->
 
-# Calculate p-value
-pt(t_stat, df = sims - 2) * 2 # not significant
+<!-- # Calculate p-value -->
+<!-- pt(t_stat, df = sims - 2) * 2 # not significant -->
 
-```
+<!-- ``` -->
 
-To put this point in real world terms, suppose that an academic program increases student term GPA by .01.  This difference is statistically significant at $p < .05$.  So, the program appears to have a real effect, which is to say that difference is not merely an artifact of chance. *But who cares!*  What we should care about is what we will call "effect size"---the magnitude of the difference---*along with* statistical significance. *P-values do not measure the strength of a relationship, but rather the probability that the observed relationship occurred by chance*. That matters, certainly, but you should not focus on p-values to the exclusion of effect sizes!
+<!-- To put this point in real world terms, suppose that an academic program increases student term GPA by .01.  This difference is statistically significant at $p < .05$.  So, the program appears to have a real effect, which is to say that difference is not merely an artifact of chance. *But who cares!*  What we should care about is what we will call "effect size"---the magnitude of the difference---*along with* statistical significance. *P-values do not measure the strength of a relationship, but rather the probability that the observed relationship occurred by chance*. That matters, certainly, but you should not focus on p-values to the exclusion of effect sizes! -->
 
-### The arbitrary threshold problem
+<!-- ### The arbitrary threshold problem -->
 
-The threshold for significance is arbitrary. Why is $\alpha$ set at .05 and not .1 or .01?  If we set $\alpha$ at .05, then what do we do if *p* =.055? .051? .049?  Indeed, in 2016, the American Statistical Association (ASA) issued a [statement](https://amstat.tandfonline.com/doi/full/10.1080/00031305.2016.1154108#.Vt2XIOaE2MN) cautioning researchers against getting fixated on the magic $p < .05$ number.  In the [press release](https://www.amstat.org/asa/files/pdfs/P-ValueStatement.pdf) accompanying the statement the Director of the ASA commented: 
+<!-- The threshold for significance is arbitrary. Why is $\alpha$ set at .05 and not .1 or .01?  If we set $\alpha$ at .05, then what do we do if *p* =.055? .051? .049?  Indeed, in 2016, the American Statistical Association (ASA) issued a [statement](https://amstat.tandfonline.com/doi/full/10.1080/00031305.2016.1154108#.Vt2XIOaE2MN) cautioning researchers against getting fixated on the magic $p < .05$ number.  In the [press release](https://www.amstat.org/asa/files/pdfs/P-ValueStatement.pdf) accompanying the statement the Director of the ASA commented:  -->
 
->The p-value was never intended to be a substitute for scientific reasoning. Well-reasoned statistical arguments contain much more than the value of a single number and whether that number exceeds an arbitrary threshold. The ASA statement is intended to steer research into a "post p<0.05 era."
+<!-- >The p-value was never intended to be a substitute for scientific reasoning. Well-reasoned statistical arguments contain much more than the value of a single number and whether that number exceeds an arbitrary threshold. The ASA statement is intended to steer research into a "post p<0.05 era." -->
 
-### The problem of dichotomizing
+<!-- ### The problem of dichotomizing -->
 
-P-values are usually dichotomized (significant or not significant) but they shouldn't---can't---be compared in this way.  The difference between significant and non-significant p-values is not itself statistically significant!
+<!-- P-values are usually dichotomized (significant or not significant) but they shouldn't---can't---be compared in this way.  The difference between significant and non-significant p-values is not itself statistically significant! -->
 
-### Confidence intervals are better
+<!-- ### Confidence intervals are better -->
 
-Often CIs can be used in place of (or in addition to) p-values.  95% CIs provide the same information as p-values with $\alpha$ of .05 but also tell us a little more:
+<!-- Often CIs can be used in place of (or in addition to) p-values.  95% CIs provide the same information as p-values with $\alpha$ of .05 but also tell us a little more: -->
 
-- The proximity of a difference or an effect to 0.
-- The width of the interval (and thus the uncertainty of point estimate).
-- The size of the effect.
+<!-- - The proximity of a difference or an effect to 0. -->
+<!-- - The width of the interval (and thus the uncertainty of point estimate). -->
+<!-- - The size of the effect. -->
 
-CIs tend to offer a better way to evaluate evidence than p-values, encouraging more flexible and contextual thinking about data. Bottom line: don't use p-values mechanically! Think about your data and weigh the evidence.
+<!-- CIs tend to offer a better way to evaluate evidence than p-values, encouraging more flexible and contextual thinking about data. Bottom line: don't use p-values mechanically! Think about your data and weigh the evidence. -->
 
 ## The Bootstrap
 
-Bootstrapping, also known as resampling, was invented by Stanford statistician Bradley Efron in the late 1970s.  It was one of the first computational techniques for statistical estimation. The name comes from the phrase "to pull oneself up by the bootstraps." 
+Bootstrapping, also known as resampling, was invented by Stanford statistician Bradley Efron in the late 1970s.  It was one of the first *computational* (as opposed to analytical) techniques for statistical estimation. The name comes from the phrase "to pull oneself up by the bootstraps." 
 
-The bootstrap involves "resampling" from a source dataset ($Z$) multiple times to create "bootstrap samples" ($Z^{*1}, Z^{*2}, Z^{*3}...Z^{*B}$), calculating a sample statistic each time ($\hat\alpha^{*1},\hat\alpha^{*2},\hat\alpha^{*3}...\hat\alpha^{*B}$.  Each bootstrap sample contains different observations and therefore produces a slightly different sample statistic.  
+The bootstrap involves "resampling" from a source dataset ($Z$) multiple times to create "bootstrap samples" ($Z^{*1}, Z^{*2}, Z^{*3}...Z^{*B}$), and calculating a sample statistic each time ($\hat\alpha^{*1},\hat\alpha^{*2},\hat\alpha^{*3}...\hat\alpha^{*B}$.  Each bootstrap sample contains different observations and therefore produces a slightly different sample statistic.  
 
 ![](images/boostrap.png)
 
-The collection of these sample statistics, called the "bootstrap distribution," approximates a sampling distribution for that statistic, the standard deviation of which is the standard error. That is why the technique is called "bootstrapping."  It seems to accomplish the impossible: a sampling distribution is generated without actually going through the expense and trouble of a large scale sampling effort. (Note that the source dataset should have $n \ge 30$ for the bootstrap to provide good estimates.)
+The collection of these sample statistics, called the "bootstrap distribution," approximates a sampling distribution for that statistic, the standard deviation of which is the standard error. That is why the technique is called "bootstrapping."  It seems to accomplish the impossible, like lifting yourself by the bootstraps: a sampling distribution is generated without actually going through the expense and trouble of a large scale sampling effort. (Note that the source dataset should have $n \ge 30$ for the bootstrap to provide good estimates.)
 
-Let's illustrate the method using the flight delays example we analyzed from the previous module.  The question we addressed there was whether on‐time performance for RegionEx was worse than for MDA, as measured by `delay`. One of the issues in the case was to select the appropriate metric for comparison.  The mean was problematic because of outliers in RegionEx delays, apparent in the density plot:
+Let's illustrate the method using the flight delays example we analyzed in the first module.  The question we addressed there was whether on‐time performance for RegionEx was worse than for MDA, as measured by `delay`. One of the issues in the case was to select the appropriate metric for comparison.  The mean was problematic because of outliers in RegionEx delays, apparent in the density plot:
 
 
 
@@ -173,7 +173,7 @@ d %>%
             median = median(delay, na.rm = T) %>%  round())
 ```
 
-In general, the median is the appropriate measure of central tendency when there are outliers.  In this case we can see that the medians are different. But is the difference statistically significant?  This is a question best addressed by bootstrapping, since the formula for computing an SE for the median, in order to do statistical inference, is obscure, requires large $n$ to be accurate, and depends on strong normality assumptions.  One of the advantages of the bootstrap is its generality: a single method can be used to compute SEs for *any* sample statistic.
+In general, the median is the appropriate measure of central tendency when there are outliers.  In this case we can see that the medians are different. But is the difference *statistically* significant?  This is a question best addressed by bootstrapping, since the formula for computing an SE for the median, in order to do statistical inference, is obscure, requires large $n$ to be accurate, and depends on strong normality assumptions.  One of the advantages of the bootstrap is its generality: a single method can be used to compute SEs for *any* sample statistic.
 
 The null hypothesis, $H_0$, is that MDA and RegionEx delays come from the same population and that the observed difference is due to random sampling variation. Our inferential strategy will be to simulate a sampling distribution of median delay difference using the bootstrap.  Assuming $H_0$, the resulting bootstrap distribution should be centered at 0 and the 95% CI should include 0.  If it does not then we can reject the null hypothesis. 
 
@@ -210,7 +210,7 @@ for(i in 1:sims){
 
 The number of iterations is somewhat arbitrary.  Generally 1000 iterations should be sufficient.
 
-3. Within the loop, for each iteration, take a bootstrap sample of the original subsetted data and calculate the median, storing it in the initialized vector.  How do we take a bootstrap sample?  Simply use the `sample()` function with `replace = TRUE`. (The dplyr functions, `sample_frac()` and `sample_n()` work well too.) 
+3. Within the loop, for each iteration, take a bootstrap sample of the original subsetted data and calculate the median, storing it in the initialized vector.  How do we take a bootstrap sample?  Simply use the `sample()` function with `replace = TRUE`. (The dplyr functions, `sample_frac()` and `sample_n()` work well too, especially when the object to be sampled is a data frame.) 
 
 ```{r x5, exercise = TRUE}
 # Initialize empty vector
@@ -511,5 +511,5 @@ In the introduction to this tutorial, we noted that the bootstrap is a  method f
 
 1. Initialize a vector for storing the regression coefficient of interest. 
 2. Define a for loop (making sure to set the seed for reproducibility).
-4. Within each loop take a bootstrap sample of the data, fit the regression, and extract and store the desired regression coefficient. You can access regression coefficients from a model with this code: `coef(model_object)`.
-5.  Compute the confidence interval for the coefficient and assess statistical significance. 
+4. Within each loop take a bootstrap sample of the data, fit the regression, and extract and store the desired regression coefficient or predictive difference.
+5.  Compute the confidence interval for the quantity of interest and assess statistical significance. 
