@@ -88,33 +88,25 @@ dummy_frame <- preProcess(dummy_frame, "medianImpute") %>%
 m_clean <- impute(m, method = "median/mode")
 
 
-set.seed(123)
-caret_glm <- train(y = m$leave,
-                   x = dummy_frame,
-                   method = "glm",
-                   trControl = trainControl(method = "cv", number = 5))
+model <- glm(ifelse(leave=="LEAVE", 1, 0) ~ college + 
+               scale(income) + 
+               scale(overage) +
+               scale(leftover) +
+               scale(house)+
+               scale(handset_price) +
+               scale(over_15mins_calls_per_month) +
+               scale(average_call_duration) +
+               reported_satisfaction  +
+               reported_usage_level +
+               considering_change_of_plan, family = binomial, data = m_clean)
 
-set.seed(123)
-caret_glmnet <- train(y = m$leave,
-                   x = dummy_frame,
-                   method = "glmnet",
-                   preProcess = c("center","scale"),
-                   trControl = trainControl(method = "cv", number = 5))
+baseline <- predict(model,  
+                    type = "response")
 
-set.seed(123)
-caret_knn <- train(y = m$leave,
-                   x = dummy_frame,
-                   method = "knn",
-                   preProcess = c("center","scale"),
-                   trControl = trainControl(method = "cv", number = 5))
-
-baseline <- predict(caret_glm,  
-                    type = "prob")$LEAVE
-
-policy_change <- predict(caret_glm,
-                         type = "prob",
-                         newdata = dummy_frame %>% 
-                           mutate(overage = overage - 300))$LEAVE
+policy_change <- predict(model,
+                         type = "response",
+                         newdata = m_clean %>% 
+                           mutate(overage = overage - 300))
 
 ```
 
