@@ -3,11 +3,11 @@ Lightbulb is an R package featuring a collection of data analysis tutorials. The
 
 1.	Probability
 2.	Comparing Means
-3.	The Bootstrap
-4.	Simple Linear Regression
-5.	Multiple Linear Regression
-6.	Real World Regression
-7.	Classification with Logisitc Regression
+3.	Simple Linear Regression
+4.	Multiple Linear Regression
+5.	Real World Regression
+6.	Classification with Logistic Regression
+7. The Bootstrap
 
 To install lightbulb:
 1.	Install two R packages on your computer, learnr and devtools: install.packages("devtools", "learner").
