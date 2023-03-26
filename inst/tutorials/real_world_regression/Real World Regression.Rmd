@@ -13,10 +13,11 @@ library(GGally)
 library(mice)
 library(imputeMissings)
 library(missForest)
-library(ranger)
+
+rmse <- function(observed, predicted) sqrt(mean((observed - predicted)^2))
 
 
-homes <- read_csv("old_LAHomes.csv") %>% 
+homes <- read_csv("LAHomes.csv") %>% 
   mutate(city = case_when(city == "Beverly Hills" ~ "San Francisco",
                           city == "Santa Monica" ~ "Menlo Park",
                           city == "Westwood" ~ "Berkeley", TRUE ~ "Oakland"))
@@ -35,8 +36,9 @@ homes$price <- price
 homes$city <- city
 
 homes <- homes|>
-  select(-garage)|>
-  mutate(city = factor(city))
+  dplyr::select(-garage)|>
+  mutate(city = factor(city),
+         pool = factor(pool))
 
 complete_homes <- homes %>% 
   mutate(pool = ifelse(is.na(pool), "N", pool)) %>% 
@@ -62,7 +64,23 @@ nolog_mod <- lm(price ~ city +
              bath + 
              pool, data = complete_homes)
 
-write_csv(homes, "homes.csv")
+# set the seed for reproducibility
+set.seed(123)
+
+# randomly select 70% of the row indices of the data frame
+index <- sample(1:nrow(complete_homes), size = .7*nrow(complete_homes), replace = F)
+
+# subset the data with the selected row indices to create the training set
+train <- complete_homes[index, ]
+
+# subset the data with the remaining row indices to create the testing set
+test <- complete_homes[-index, ]
+
+loglog_model <- loglog_mod <- lm(log(price) ~ city + 
+             log(sqft) + 
+             bed + 
+             bath + pool, data = train)
+
 
 ```
 
@@ -108,18 +126,16 @@ The goal in this tutorial is to  equip you with the skills and example code to h
 
 As an example, we will use data similar to what you worked with for the PacDev case, but  exhibiting more real world characteristics, with---among other problems---missing observations and non-linearity.  Here is the data dictionary:  
 
-
 Each row represents sales information on a single family home in the Bay Area.
 
-- `city` [fcr]: home location.
-- `bed` [num]: number of bedrooms.
-- `bath` [num]: number of baths.
-- `garage` [fcr]: size of garage in cars. 
-- `sqft` [num]: size of home.
-- `pool` [fcr]: indicator for whether the home has a pool.  
-- `spa` [num]: indicator for whether the home has a spa.  
-- `rooms` [num]: number of rooms.
-- `price` [num]: home sales price. 
+- `city` [fct]: home location.
+- `bed` [dbl]: number of bedrooms.
+- `bath` [dbl]: number of baths.
+- `sqft` [dbl]: size of home.
+- `pool` [fct]: indicator for whether the home has a pool.  
+- `spa` [dbl]: indicator for whether the home has a spa.  
+- `rooms` [dbl]: number of rooms.
+- `price` [dbl]: home sales price. 
 
 To get started, take a look at the data:
 
@@ -132,33 +148,30 @@ summary(homes)
 glimpse(homes)
 ```
 
-Three of the variables are factor variables, while the rest are numeric. There is quite a bit of missing data, which we need to address before modeling. 
+Two of the variables are factor variables, while the rest are numeric. There is quite a bit of missing data, which we will need to address before modeling. Additionally, `pool` and `spa` have zero variance:  the data that is not missing consists in just a single value---`Y` and `1`, respectively. 
 
 ## Near zero variance predictors
 
-The `caret` package includes a function, `nzv()` (for "near zero variance"), that will identify the columns in a data frame with little or no variation.  
+Zero variance predictors like `pool` and `spa` contain no information at all. By definition, these predictors will add nothing to a regression model and should be removed. In fact, the least squares algorithm will not be able to estimate a coefficient for a zero variance predictor. 
 
-Zero variance predictors contain no information at all---an example would be a constant. By definition, these predictors add nothing to a regression model and should be removed. In fact, the least squares algorithm will not be able to estimate a coefficient for a zero variance predictor. 
-
-Near zero variance predictors contain a little information. Should near zero variance predictors be removed? Not necessarily. In fact, I would recommend not automatically eliminating such variables. A little information is better than none. And including weak predictors in a linear regression model will typically not cause problems.
+*Near* zero variance predictors contain a little information---but not much. Should they be removed? Not necessarily. In fact, I would recommend not automatically eliminating such variables with the rationale that a little information is better than none. And including weak predictors in a linear regression model will typically not cause problems.
 
 When might you want to remove near zero variance predictors? Here are some considerations:
 
-- Sometimes you need an excuse to reduce the dimensionality of your data by removing predictors. Either the predictor set is large, which causes the estimation algorithm to bog down, or there are more predictors than instances (rows), in which case an algorithm like OLS regression will not work. Removing predictors is the only option in the latter case, and a good option in the former case.
+- Sometimes you need an excuse to reduce the dimensionality of your data by removing predictors. Either the predictor set is large, which causes modeling algorithms to bog down, or there are more predictors than instances (rows), in which case an algorithm like OLS regression will not work. Removing predictors is the only option in the latter case, and a good option in the former case.
 
 - Low variance predictors, if they contain a few large outliers, can sometimes produce unrealistic coefficients and standard errors in linear regression.
 
 <!-- Cross-validation procedures will run into trouble with near zero variance predictors because, after dividing the data into folds, some of the predictors will end up with zero variance. When this happens caret will produce a scary warning in red letters: “prediction from a rank-deficient fit may be misleading.” Keep in mind, however, that this is just a warning (at the worst it might affect the reliability of caret’s cross-validation estimates of the model’s out-of-sample performance) and is not by itself as reason to remove predictors. -->
 
-For reference, here is a quick example of how to use `nzv()`:
+The `caret` package includes a function, `nzv()` (for "near zero variance"), that will identify the columns in a data frame with little or no variation.  Here is a quick example of how to use `nzv()`:
 
 ```{r x3, exercise = TRUE}
 nzv(homes, names = T)
 
 ```
 
-This result tells us that all the columns in this dataset except `pool` and `spa` have enough variance to function as useful predictors. Here is how you would remove near zero variance variables using `nzv()`: `new_data <- data[, -nzv(data)]`.
-
+This result tells us that all the columns in this data set except `pool` and `spa` have enough variance to function as useful predictors. Here is how you would remove near zero variance variables using `nzv()`: `new_data <- data[, -nzv(data)]`.
 
 ## Missing Data
 
@@ -166,13 +179,13 @@ If the missing observations are missing at random (MAR)  or  missing completely 
 
 The solution in such situations is to *impute the missing observations*, which means to make an educated guess about the  probable values of the NAs---what they would have been were they not missing. 
 
-Note that NA can mean different things for different datasets.  Read the data dictionary carefully!  Sometimes you don't need to impute NAs but to replace them with appropriate values.  For example, the `Alley` column in the Ames Housing dataset is 90% NAs.  The data dictionary informs us that NA  means the home has no alley. Thus, NA does not represent missing information in this case, but a *missing feature* of the home. In this case we can confidently replace NA with "none." In this dataset, the NAs in `pool` also seem to mean "none" since the only recorded observations are `Y`. And the extent of missing observations in `spa`---1591---combined with the fact that the only recorded values are `1`, means that this variable contains no information. 
+Note that NA can mean different things for different data sets.  Read the data dictionary carefully!  Sometimes you don't need to impute NAs but to replace them with appropriate values.  For example, the `Alley` column in the Ames Housing data (for the Kaggle project) is 90% NAs.  The data dictionary informs us that NA  means the home has no alley. Thus, NA does not represent *missing information* in this case, but a *missing feature* of the home. In this case we could confidently replace NA with "none." In the data we are working with here, the NAs in `pool` also seem to mean "none" since the only recorded observations are `Y`. And the extent of missing observations in `spa`---1591---combined with the fact that the only recorded values are `1`, means that this variable contains no information. 
 
 ```{r x4, exercise = TRUE}
 unique(homes$spa)
 ```
 
-`spa` can be removed without consequence. Let's make these changes now and calculate the complete cases:
+`spa` can be removed without consequence, and the NAs in `pool` can be replaced with `N` (based on the logic stated above). Let's make these changes now and calculate the complete cases:
 
 ```{r x6, exercise = TRUE}
 homes <- homes %>% 
@@ -183,13 +196,15 @@ homes <- homes %>%
 sum(complete.cases(homes))
 ```
 
-The `lm()` function will automatically remove rows with missing observations, so in this case the functional size of the dataset for regression modeling is much smaller than it seems at first. 
+The `lm()` function will automatically remove rows with missing observations---it uses only complete cases---so  the functional size of this data set for regression modeling is much smaller than it seems at first. 
 
-How do you know when to impute genuinely missing observations rather than removing the entire row? The short answer is: you don't. You must use your judgment.  If there are just a few missing observations then remove those rows. That is the most convenient thing to do and should not impact results.  But if the missing observations are more than 10-20% of the data set (though this is a *very rough*, ballparky guideline), and if there are large numbers of predictors, and you are including interactions, then you should consider imputation simply in the interest of data preservation. (One caveat is that if the NAs are too extensive then the columns won't contain very much information and imputation won't be very reliable.  In such cases consider starting over with data collection. )
+How do you know when to impute genuinely missing observations rather than removing the entire row? The short answer is: you don't. You must use your judgment.  If there are just a few missing observations then remove those rows. That is the most convenient thing to do and should not impact results.  But if the missing observations are more than 10-20% of the data set (though this is a *very rough*, ballparky guideline), and if there are large numbers of predictors, and you are including interactions, then you should consider imputation simply in the interest of data preservation. 
 
-The imputation approach you use will in part depend on your modeling goal. For example, if your goal is inference---that is, if you are most interested in interpreting model coefficients to reason about causal relationships---then you should use *multiple imputation*.  This method creates multiple datasets representing different possibilities for the imputed values. It ensures that the uncertainty inherent in guessing unknown values makes its way appropriately into the standard errors for the model coefficients. If, on the other hand, you need to impute a single value in order to have a complete test set for prediction then you should use *single imputation.*
+One caveat is that if the NAs are too extensive then the columns won't contain very much information and imputation won't be very reliable.  In such cases consider starting over with data collection or---if there are just a few majority NA columns---removing those that have a high proportion of missings.
 
-There are many packages available in R to do imputation.  Most of them are fiddly.  One that is  straightforward to use single imputation is the `imputeMissings` package, which offers several imputation methods, the fastest and simplest of which is imputation with medians (for numeric data) or the mode (for categorical data) using the `impute()` function. 
+The imputation approach you use will in part depend on your modeling goal. For example, if your goal is inference---that is, if your goal is to interpret model coefficients to reason about causal relationships---then you should use *multiple imputation*.  This method creates multiple data sets representing different possibilities for the imputed values. It ensures that the uncertainty inherent in guessing unknown values makes its way appropriately into the standard errors for the model coefficients. If, on the other hand, you need to impute a single value in order to have a complete test set for prediction then you should use *single imputation.* Here we'll cover only single imputation, since it is the appropriate method for the Kaggle competition.
+
+There are many packages available in R to do imputation.  Most of them are fiddly.  One that is  straightforward to use for single imputation is the `imputeMissings` package, which offers several imputation methods, the fastest and simplest of which is imputation with medians (for numeric data) or the mode (for categorical data) using the `impute()` function. 
 
 ```{r x7, exercise = TRUE}
 complete_homes <- impute(homes, method = "median/mode") 
@@ -198,58 +213,57 @@ complete_homes <- impute(homes, method = "median/mode")
 Did it work?
 
 ```{r x8, exercise = TRUE}
-na.omit(complete_homes) %>% 
-  nrow()
+nrow(complete_homes) == sum(complete.cases(complete_homes))
 
 ```
 
 Yes. That was pretty simple. 
 
-What about multiple imputation? Because the point of multiple imputation is to get accurate standard errors for model coefficients, in the presence of missing data, this method is typically used in conjunction with a fitted model. We will demonstrate with the `mice` package. Here is an example workflow:
+<!-- What about multiple imputation? Because the point of multiple imputation is to get accurate standard errors for model coefficients, in the presence of missing data, this method is typically used in conjunction with a fitted model. We will demonstrate with the `mice` package. Here is an example workflow: -->
 
-```{r include=FALSE}
-homes <- homes %>% 
-  mutate(pool = ifelse(is.na(pool), "N", pool),
-         pool = factor(pool)) %>% 
-  select(-spa)
-```
+<!-- ```{r include=FALSE} -->
+<!-- homes <- homes %>%  -->
+<!--   mutate(pool = ifelse(is.na(pool), "N", pool), -->
+<!--          pool = factor(pool)) %>%  -->
+<!--   select(-spa) -->
+<!-- ``` -->
 
-```{r warning=FALSE, echo = T}
+<!-- ```{r warning=FALSE, echo = T} -->
 
-mice_data <- mice(homes , m = 5,  meth = "rf", seed = 123, printFlag = F)
+<!-- mice_data <- mice(homes , m = 5,  meth = "rf", seed = 123, printFlag = F) -->
 
-```
+<!-- ``` -->
 
-Here are the elements in the above line of code.
+<!-- Here are the elements in the above line of code. -->
 
-- `mice()` is the function used to create mutliple imputed datasets.
-- `m` specifies the number of imputed datasets.
-- `meth` is the imputation method used; `rf` stands for "random forest."
-- `seed` is the random seed for reproducibility.
-- `printFlag = F` suppresses verbose output.
+<!-- - `mice()` is the function used to create mutliple imputed datasets. -->
+<!-- - `m` specifies the number of imputed datasets. -->
+<!-- - `meth` is the imputation method used; `rf` stands for "random forest." -->
+<!-- - `seed` is the random seed for reproducibility. -->
+<!-- - `printFlag = F` suppresses verbose output. -->
 
-We now use the imputed datasets to fit the regression model, as follows:
+<!-- We now use the imputed data sets to fit the regression model, as follows: -->
 
-```{r echo = T}
-model <- with(mice_data, lm(price ~ city + bed + bath + sqft + rooms + pool))
-summary(pool(model))
+<!-- ```{r echo = T} -->
+<!-- model <- with(mice_data, lm(price ~ city + bed + bath + sqft + rooms + pool)) -->
+<!-- summary(pool(model)) -->
 
-```
+<!-- ``` -->
 
-The `with()` function signals to `mice` to fit multiple models, using the `m` number of imputed datasets, the results of which must then be combined and averaged with `pool()`.  
+<!-- The `with()` function signals to `mice` to fit multiple models, using the `m` number of imputed data sets, the results of which must then be combined and averaged with `pool()`.   -->
 
-For convenience going forward we will use the dataset imputed above with single imputation.
+<!-- For convenience going forward we will use the data set imputed above with single imputation. -->
 
-However, something seems wrong with this model.  The baseline city is Berkeley.  A simple data summary shows that homes in San Francisco should not be worth less. The sign on the coefficient for San Francisco seems wrong.
+<!-- However, something seems wrong with this model.  The baseline city is Berkeley.  A simple data summary shows that homes in San Francisco should not be worth less. The sign on the coefficient for San Francisco seems wrong. -->
 
-```{r x3_1, exercise = TRUE}
-complete_homes %>%
-  group_by(city) %>%
-  summarize(avg_price = mean(price)) %>%
-  arrange(avg_price)
-```
+<!-- ```{r x3_1, exercise = TRUE} -->
+<!-- complete_homes %>% -->
+<!--   group_by(city) %>% -->
+<!--   summarize(avg_price = mean(price)) %>% -->
+<!--   arrange(avg_price) -->
+<!-- ``` -->
 
-What is going wrong?
+<!-- What is going wrong? -->
 
 <!-- using `pool()`which then must be  -->
 <!-- This package implements what is known as "single imputation"  because it produces just a single complete data set. Single imputation is what we need when doing prediction.  (You will also see references to "multiple imputation," which is the go-to method for inference but won't work---at least not as designed---for prediction.)  `missForest` works well for modest amounts of imputation, but, unfortunately, is extremely time-consuming for large data sets. The upside of this package---that it does multivariable imputation, using information from all the other variables, and is therefore arguably more accurate than alternatives---is also its downside: it is slow, sometimes impossibly so.  Below is an example for how to use missForest. -->
@@ -272,36 +286,42 @@ What is going wrong?
 
 ## Multicolinearity
 
-Highly correlated predictors add noise to a regression model without adding information, and can cause instability in standard error and coefficient estimates. This  is obviously unwelcome if your goal is inference.  Note that *multicollinearity is not a problem for prediction*.
+Highly correlated predictors add noise to a regression model without adding information, and can cause instability in standard error and coefficient estimates. This  is obviously unwelcome if your goal is inference.  
 
-There are more or less complicated ways of identifying multicollinearity statistically.  Various functions in R will use what is known as the "variance inflation factor" or VIF to identify correlated predictors for removal.  More simply, bivariate correlations can be calculated between all the predictors and then one of each correlated pair above a certain threshold can be removed. (See [Chapter 3.3](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictor) in the caret documentation for information on how to implement this strategy.) However you identify the correlated predictors, the solution is to remove them.  
+Note that *multicolinearity is not a problem for prediction*; it will not impact the quality of predictions.  But when working with large data sets removing one of a pair of highly correlated predictors can facilitate faster model fitting. The loss of information is minimal at correlations above .8 or .9. 
 
-As noted, the symptoms of multicolinearity include instability in standard errors and coefficients.  You will see these estimates go haywire when the correlated predictor is added to the model.  Witness:
+There are more or less complicated ways of identifying multicollinearity statistically.  Various functions in R use what is known as the "variance inflation factor" or VIF to identify correlated predictors for removal.  More simply, bivariate correlations can be calculated between all the predictors and then one of each correlated pair above a certain threshold can be removed. (See [Chapter 3.3](http://topepo.github.io/caret/pre-processing.html#identifying-correlated-predictor) in the caret documentation for information on how to implement this strategy.) However you identify the correlated predictors, the solution is to remove them.  
+
+As noted, the symptoms of multicolinearity for inference include instability in standard errors and coefficients.  You will see these estimates go haywire when the correlated predictor is added to the model.  For example:
 
 ```{r x9, exercise = TRUE}
 lm(price ~ rooms, data = complete_homes) %>% 
   summary
 ```
 
-Observe what happens to the coefficient, SE and p-value for `rooms` when we add `beds`:
+Observe what happens to the coefficient, SE and p-value for `rooms` when we add `bed`:
 
 ```{r x10, exercise = TRUE}
 lm(price ~ rooms + bed, data = complete_homes) %>% 
   summary
 ```
 
-This behavior is due to the correlation between `bed` and `rooms`:
+The coefficient estimate declines and the SE goes way up. This behavior is due to the correlation between `bed` and `rooms`:
 
 ```{r x11, exercise = TRUE}
-with(complete_homes, cor(bed, rooms))
+
+complete_homes %>% 
+  select(bed, rooms) %>% 
+  cor()
+
 ```
 
-Clearly, these two variables contain virtually the same information. To reason accurately about effect sizes and statistical significance we need to remove one or the other.  For purposes of prediction, however, it would be fine to leave both in the model, since together they contain more information than just one alone.
+Clearly, these two variables contain virtually the same information. To reason accurately about effect sizes and statistical significance we need to remove one or the other.  Again, for purposes of prediction, it would be fine to leave both in the model.
 
 
 ## Non-linear Data
 
-Price data is typically non-linear.  We see that in this dataset:
+Price data is typically non-linear.  We see that in this data set:
 
 ```{r x12, exercise = TRUE}
 
@@ -326,7 +346,7 @@ ggplot(complete_homes, aes(sqft, price)) +
 
 ```
 
-A linear model will have trouble with non-linear data.  
+A *linear model* will have trouble with non-linear data.  
 
 ### Log Transformation
 
@@ -452,8 +472,6 @@ Log transform `price` and `sqft` (a log-log model):
 summary(loglog_mod <- lm(log(price) ~ . -sqft + log(sqft), data = complete_homes))$r.square
 ```
 
-The shorthand code here says to first include all predictors, then take out `sqft` and add in `log(sqft)`.
-
 ```{r x29, exercise = TRUE}
 plot(loglog_mod, which = 1)
 ```
@@ -511,7 +529,7 @@ Notice that the signs on the coefficients in this model now make sense, given wh
 
 ## Outliers
 
-There are some extreme home prices in this dataset:
+There are some extreme home prices in this data set:
 
 ```{r x34, exercise = TRUE}
 homes %>% 
@@ -527,4 +545,222 @@ In general, outliers *should not* be reflexively removed from a data set. Simply
 
 2. Ask questions of domain experts  to understand other factors influencing home sales.  Could a variable be added, or created, that would help explain high prices? 
 
+3. Use log transformations to make outliers less influential.
 
+As a last resort, remove the extreme values, but make sure to clearly indicate  that you have done so when presenting results.
+
+## Overfitting
+
+Adding predictors to a regression model---increasing model complexity---will generally improve the model.  Simple models may not describe the actual patterns in the data.  As an illustration, consider the following scenarios.
+
+```{r echo = F, message=FALSE}
+set.seed(123) # set seed for reproducibility
+n <- 50 # number of observations
+x1 <- rnorm(n, mean = 0, sd = 1) # generate predictor 1
+x2 <- rnorm(n, mean = 0, sd = 1) # generate predictor 2
+y <- x1 + x1^2 -x2 + rnorm(n, mean = 0, sd = 0.5) # generate response variable
+data <- data.frame(x1, x2, y) # combine into a data frame
+
+data$pred1 <- predict(lm(y~x1, data = data))
+data$pred2 <- predict(lm(y~x1 + I(x1^2), data = data))
+
+
+ggplot(data, aes(x1, y))+
+geom_point()+
+  geom_line(aes(x1, pred1), col = 2) +
+  theme_minimal()+
+  labs(title= "Regression model: y ~ x1")
+```
+
+Clearly there is non-linear pattern in the data that could be modeled by adding a  quadratic term.
+
+```{r echo = F, message=FALSE}
+set.seed(123) # set seed for reproducibility
+n <- 50 # number of observations
+x1 <- rnorm(n, mean = 0, sd = 1) # generate predictor 1
+x2 <- rnorm(n, mean = 0, sd = 1) # generate predictor 2
+y <- x1 + x1^2 -x2 + rnorm(n, mean = 0, sd = 0.5) # generate response variable
+data <- data.frame(x1, x2, y) # combine into a data frame
+
+data$pred1 <- predict(lm(y~x1, data = data))
+data$pred2 <- predict(lm(y~x1 + I(x1^2), data = data))
+
+ggplot(data, aes(x1, y))+
+geom_point()+
+  geom_line(aes(x1, pred2), col = 2) +
+  theme_minimal()+
+  labs(title= "Regression model: y ~ x1 + x1 * x1")
+
+# summary(lm(y ~ x1, data = data))$r.square
+#  summary(lm(y ~ x1 + I(x1^2), data = data))
+#  
+#  rmse <- function(y, pred) sqrt(mean((y-pred)^2))
+# rmse(data$y, data$pred2)
+```
+
+R-squared for the first linear model was .42, which has increased to .65 with the addition of the quadratic term.  In this case additional model complexity seems warranted to capture the non-linear pattern in the data. RMSE for this model is 1.07.
+
+However, inspired by this success, we may be drawn to creating even more complex models:
+
+
+```{r echo = F, message=FALSE}
+set.seed(123) # set seed for reproducibility
+n <- 50 # number of observations
+x1 <- rnorm(n, mean = 0, sd = 1) # generate predictor 1
+x2 <- rnorm(n, mean = 0, sd = 1) # generate predictor 2
+y <- x1 + x1^2 -x2 + rnorm(n, mean = 0, sd = 0.5) # generate response variable
+data <- data.frame(x1, x2, y) # combine into a data frame
+
+data$pred1 <- predict(lm(y~x1, data = data))
+data$pred2 <- predict(lm(y~x1 + I(x1^2), data = data))
+model <- lm(y~x1 + I(x1^2) + I(x1^3)+ I(x1^4)+ I(x1^5)+ I(x1^6)+ I(x1^7)+ I(x1^8)+ I(x1^9)+ I(x1^10) +
+                           I(x1^11) + I(x1^12)+ I(x1^13)+ I(x1^14)+ I(x1^15)+ I(x1^16)+ I(x1^17)+ I(x1^18), data = data)
+data$pred3 <- predict(model)
+
+
+ggplot(data, aes(x1, y))+
+geom_point()+
+  geom_line(aes(x1, pred3), col = 2) +
+  theme_minimal()+
+  labs(title= "Regression model of y with 20th degree polynomial")
+
+# summary(lm(y~x1 + I(x1^2) + I(x1^3)+ I(x1^4)+ I(x1^5)+ I(x1^6)+ I(x1^7)+ I(x1^8)+ I(x1^9)+ I(x1^10) +
+#                           I(x1^11) + I(x1^12)+ I(x1^13)+ I(x1^14)+ I(x1^15)+ I(x1^16)+ I(x1^17)+ I(x1^18), data = data))
+
+#  rmse <- function(y, pred) sqrt(mean((y-pred)^2))
+# rmse(data$y, data$pred3)
+```
+
+Our efforts are rewarded with an even higher R-squared:  .76. RMSE has of course also declined---down to .87.
+
+But is this a worthwhile achievement?  Not really.  It should be apparent that the basic pattern in the data is a curve.  Additional model complexity, represented by the squiggles of the regression line, is very likely driven by individual data points.  Notice that the model fits some data points exactly. This is an example of **overfitting**.  The model has become overly complex: it fits the data points in a single sample so accurately---too accurately--- that it will actually be quite *in*accurate with new data. Complexity is a good thing in statistical modeling, but only up to a certain point.  To see this, consider predictions from this model using inputs from a new sample from the same population:
+
+```{r echo = F, message=FALSE}
+set.seed(123) # set seed for reproducibility
+n <- 50 # number of observations
+x1 <- rnorm(n, mean = 0, sd = 1) # generate predictor 1
+x2 <- rnorm(n, mean = 0, sd = 1) # generate predictor 2
+y <- x1 + x1^2 -x2 + rnorm(n, mean = 0, sd = 0.5) # generate response variable
+data <- data.frame(x1, x2, y) # combine into a data frame
+
+data$pred1 <- predict(lm(y~x1, data = data))
+data$pred2 <- predict(lm(y~x1 + I(x1^2), data = data))
+model <- lm(y~x1 + I(x1^2) + I(x1^3)+ I(x1^4)+ I(x1^5)+ I(x1^6)+ I(x1^7)+ I(x1^8)+ I(x1^9)+ I(x1^10) +
+                           I(x1^11) + I(x1^12)+ I(x1^13)+ I(x1^14)+ I(x1^15)+ I(x1^16)+ I(x1^17)+ I(x1^18), data = data)
+
+set.seed(130) # set seed for reproducibility
+n <- 50 # number of observations
+x1_new <- rnorm(n, mean = 0, sd = 1) # generate predictor 1
+x2_new <- rnorm(n, mean = 0, sd = 1) # generate predictor 2
+y_new <- x1_new + x1_new^2 -x2_new + rnorm(n, mean = 0, sd = 0.5) # generate response variable
+data_new <- data.frame(x1_new, x2_new, y_new) # combine into a data frame
+data_new$pred <- predict(model, newdata= data_new)
+
+ggplot()+
+geom_point(data = data_new, aes(x1_new, y_new))+
+  geom_line(data =data_new, aes(x1_new, pred), col = 2) +
+  theme_minimal()+
+  labs(title= "Predictions from a 20th degree polynomial model using new data")
+
+
+# rmse <- function(y, pred) sqrt(mean((y-pred)^2))
+# rmse(data_new$y_new, data_new$pred)
+```
+
+This new data displays the same basic curve.  But the model, expecting the same data points on which it was trained, does not generalize well and yields a much worse RMSE: 3.67. What looked like spectacular performance falls apart when the model is used with new data.
+
+## Bias-Variance Trade-off
+
+The bias-variance trade off refers to the tension between two important properties of a model: bias and variance. 
+
+- *Bias*: The error introduced by approximating a real-world problem with a simplified model. All models are simplifications, of course. But some are too simple, leading to underfitting and poor performance on both training and testing data. Such models have high bias.  The first model in the above section---using a regression line to fit a curve--- has high bias.
+
+- *Variance*: The error that is introduced by the model's sensitivity to the training data. Models with high variance tend to be too complex and fit the training data too closely, leading to overfitting and poor generalization to new and unseen data. The last model in the above section has high variance.
+
+It is not possible to create a model that has both very low bias and very low variance. Hence the trade off.  The best we can do is manage the tension between bias and variance by avoiding overfitting and creating models with *appropriate* complexity.  How would we know how much complexity is appropriate or when a model begins overfitting?  Cross-validation.
+
+## Cross-validation
+
+The language that we've been using---training and testing---is the language of cross-validation.  When we train a model on one sample of data (training data) and then evaluate its performance by predicting the target on another sample (testing data) we are doing cross-validation. Note that the testing data must contain the target; model evaluation then consists in comparing the model's predictions with the observed target.  Ideally, performance on the training and testing data ---we call this "in-sample" and "out-of_sample" performance---should be similar. The typical pattern is that both in-sample and out-of-sample performance will improve as a model becomes more complex---think of this as the addition of appropriate complexity.  The model's bias and variance both decrease. Eventually, however, overfitting will occur, the tell-tale sign of which is that in-sample performance continues to improve while out-of-sample performance gets worse.
+
+There are many different forms of cross-validation.
+
+*Validation set method*. 
+
+This is the simplest cross-validation method.  It involves splitting the available data into two separate sets: a training set and a testing or validation set. A 70/30 train/test split is common.  The training set is then used to train the model, while the validation set is used to evaluate its performance. 
+
+A variation of the validation set method is to split in three part: train, test and holdout.  This is, in effect, what you will be using for the Kaggle competition; your submitted predictions will be evaluated on the holdout set and summarized on the leaderboard. 
+
+One disadvantage of the validation set method is that it can result in high variance, as the model's performance may be sensitive to the random partitioning of the data. Other cross-validation techniques such as k-fold cross-validation reduce this problem.
+
+*k-fold cross-validation*
+
+K-fold cross-validation involves splitting the available data set into k equal-sized parts or "folds". In each iteration, one fold of the data is used as the validation set or test set while the other folds are together used as the training set. This process is then repeated k times, with each fold being used as the validation set exactly once. The performance metric for each iteration of k-fold cross-validation---for example, RMSE or R-squared--- is recorded and averaged across all k iterations to obtain an estimate of the model's performance on new data.
+
+A common value for k is 10. However, while this number ensures low variance in performance estimates, it can also be very time-consuming since the model must be fit  10 times.  5 fold cross-validation can be a good compromise.
+
+## Cross validation example
+
+Here are the steps for the validation set method.
+
+1. Split the data into train and test.
+2. Fit the model on train. 
+3. Calculate in-sample model performance.
+4. Use the model to predict the target for the test set.
+5. Calculate out-of-sample model performance. 
+
+We will demonstrate using the `complete_homes` data.
+
+1. Split the data into train and test.
+
+```{r x35, exercise = TRUE}
+# set the seed for reproducibility
+set.seed(123)
+
+# randomly select 70% of the row indices of the data frame
+index <- sample(1:nrow(complete_homes), size = .7*nrow(complete_homes), replace = F)
+
+# subset the data with the selected row indices to create the training set
+train <- complete_homes[index, ]
+
+# subset the data with the remaining row indices to create the testing set
+test <- complete_homes[-index, ]
+```
+
+2. Fit the model using the train data.
+
+As we've seen, log transforming both `price` and `sqft` improves the fit.
+
+```{r x36, exercise = TRUE}
+# Create a linear regression model with log transformed price and sqft
+loglog_model <- lm(log(price) ~ city + bed + bath + log(sqft) + pool, data = train)
+
+summary(loglog_model)
+
+```
+
+3. Calculate in-sample model performance.
+
+We must remember to exponentiate the fitted values (expressed in log dollars) in order to return dollar units. 
+
+```{r x37, exercise = TRUE}
+# Create a function to calculate RMSE
+rmse <- function(observed, predicted) sqrt(mean((observed - predicted)^2))
+
+# Calculate RMSE
+rmse(train$price, exp(predict(loglog_model))) 
+
+```
+
+4. Use the model to predict the target for the test set.
+5. Calculate out-of-sample model performance.
+
+```{r x38, exercise = TRUE}
+# Predict for the test data
+predictions <- predict(loglog_model, newdata = test)
+
+# Calculate RMSE
+rmse(test$price, exp(predictions))
+```
+
+The RMSE is modestly higher on the test set than on the training set but not enough to worry about overfitting. 
